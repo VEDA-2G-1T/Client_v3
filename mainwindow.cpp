@@ -3578,7 +3578,7 @@ void EventSearchDialog::setupUi()
                             applyImageEnhancement(); // 이미지 향상 적용
                         } else {
                             // 이미지 로드 실패 시 기본 이미지 표시
-                            QPixmap p(":/test/test_img_2.png");
+                            QPixmap p(":/test/no_camera.png");
                             m_originalPixmap = p; // 원본 이미지 저장
                             QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                             imagePreview->setPixmap(scaledPixmap);
@@ -3586,7 +3586,7 @@ void EventSearchDialog::setupUi()
                         }
                     } else {
                         // 네트워크 오류 시 기본 이미지 표시
-                        QPixmap p(":/test/test_img_2.png");
+                        QPixmap p(":/test/no_camera.png");
                         m_originalPixmap = p; // 원본 이미지 저장
                         QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                         imagePreview->setPixmap(scaledPixmap);
@@ -3595,7 +3595,7 @@ void EventSearchDialog::setupUi()
                 });
             } else {
                 // 기본 이미지 표시
-                QPixmap p(":/test/test_img_2.png");
+                QPixmap p(":/test/no_camera.png");
                 m_originalPixmap = p; // 원본 이미지 저장
                 QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                 imagePreview->setPixmap(scaledPixmap);
@@ -4742,7 +4742,7 @@ void EventCardPopupDialog::loadImage()
                 applyImageEnhancement();
             } else {
                 // 이미지 로드 실패 시 기본 이미지 표시
-                QPixmap p(":/test/test_img_2.png");
+                QPixmap p(":/test/no_camera.png");
                 m_originalPixmap = p;
                 QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                 imagePreview->setPixmap(scaledPixmap);
@@ -4750,7 +4750,7 @@ void EventCardPopupDialog::loadImage()
             }
         } else {
             // 네트워크 오류 시 기본 이미지 표시
-            QPixmap p(":/test/test_img_2.png");
+            QPixmap p(":/test/no_camera.png");
             m_originalPixmap = p;
             QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
             imagePreview->setPixmap(scaledPixmap);
@@ -5208,14 +5208,14 @@ void ContinuousDetectionPopupDialog::loadImage()
                 imagePreview->setPixmap(scaledPixmap);
             } else {
                 // 이미지 로드 실패 시 기본 이미지 표시
-                QPixmap p(":/test/test_img_2.png");
+                QPixmap p(":/test/no_camera.png");
                 m_originalPixmap = p;
                 QPixmap scaledPixmap = p.scaledToHeight(300, Qt::SmoothTransformation);
                 imagePreview->setPixmap(scaledPixmap);
             }
         } else {
             // 네트워크 오류 시 기본 이미지 표시
-            QPixmap p(":/test/test_img_2.png");
+            QPixmap p(":/test/no_camera.png");
             m_originalPixmap = p;
             QPixmap scaledPixmap = p.scaledToHeight(300, Qt::SmoothTransformation);
             imagePreview->setPixmap(scaledPixmap);
