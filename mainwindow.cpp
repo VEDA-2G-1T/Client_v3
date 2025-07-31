@@ -54,6 +54,65 @@
 #include <QNetworkReply>
 #include <QJsonArray>
 #include <QTimer>
+#include <opencv2/opencv.hpp>  // [2024-12-19] 이미지 향상 기능을 위한 OpenCV 추가
+
+// ===================================================================
+// [2024-12-19] DragDropImageLabel 클래스 구현
+// 드래그 앤 드롭으로 이미지를 로드할 수 있는 커스텀 QLabel
+// ===================================================================
+DragDropImageLabel::DragDropImageLabel(QWidget *parent)
+    : QLabel(parent)
+{
+    setAcceptDrops(true);
+}
+
+void DragDropImageLabel::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasImage() || 
+        event->mimeData()->hasUrls() || 
+        event->mimeData()->hasFormat("text/uri-list")) {
+        event->acceptProposedAction();
+    }
+}
+
+void DragDropImageLabel::dropEvent(QDropEvent *event)
+{
+    QPixmap pixmap;
+    
+    // 이미지 데이터 직접 처리
+    if (event->mimeData()->hasImage()) {
+        QImage image = qvariant_cast<QImage>(event->mimeData()->imageData());
+        pixmap = QPixmap::fromImage(image);
+    }
+    // URL 처리
+    else if (event->mimeData()->hasUrls()) {
+        QList<QUrl> urls = event->mimeData()->urls();
+        if (!urls.isEmpty()) {
+            QString filePath = urls.first().toLocalFile();
+            if (!filePath.isEmpty()) {
+                pixmap.load(filePath);
+            }
+        }
+    }
+    // text/uri-list 처리
+    else if (event->mimeData()->hasFormat("text/uri-list")) {
+        QString uriList = QString::fromUtf8(event->mimeData()->data("text/uri-list"));
+        QStringList uris = uriList.split("\n", Qt::SkipEmptyParts);
+        if (!uris.isEmpty()) {
+            QUrl url(uris.first());
+            QString filePath = url.toLocalFile();
+            if (!filePath.isEmpty()) {
+                pixmap.load(filePath);
+            }
+        }
+    }
+    
+    if (!pixmap.isNull()) {
+        emit imageDropped(pixmap);
+    }
+}
+
+
 
 // #define DEBUG_UI_BORDER
 #ifdef DEBUG_UI_BORDER
@@ -2248,7 +2307,6 @@ void MainWindow::onWebSocketMessageReceived(const QString &message)
         qWarning() << "Received unknown WebSocket message type:" << type;
     }
 }
-
 // Replace the entire EventCard constructor with this
 EventCard::EventCard(const QString& cameraName,
                      const QString& eventText,
@@ -2319,6 +2377,13 @@ EventCard::EventCard(const QString& cameraName,
         )");
 
         if (m_mode == Event) {
+            // [2024-12-19] Event 모드에서 별 버튼과 X 버튼 모두 표시
+            auto *buttonContainer = new QWidget(this);
+            auto *buttonLayout = new QHBoxLayout(buttonContainer);
+            buttonLayout->setContentsMargins(0, 0, 0, 0);
+            buttonLayout->setSpacing(2);
+
+            // 별 버튼 (북마크 토글)
             m_actionButton->setCheckable(true);
             m_actionButton->setIcon(QIcon(":/icons/icons/star_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"));
             connect(m_actionButton, &QToolButton::toggled, this, [this](bool checked){
@@ -2329,16 +2394,53 @@ EventCard::EventCard(const QString& cameraName,
                     ));
                 emit starToggled(this, checked);
             });
+
+            // X 버튼 (이벤트 삭제)
+            m_removeButton = new QToolButton(this);
+            m_removeButton->setText("✕");
+            m_removeButton->setToolTip(tr("Delete event"));
+            m_removeButton->setFixedSize(16, 16);
+            m_removeButton->setStyleSheet(R"(
+                QToolButton { 
+                    background-color: transparent; 
+                    border: none;
+                    color: #ff4444;
+                    font-weight: bold;
+                    font-size: 10px;
+                }
+                QToolButton:hover { 
+                    background-color: #ff4444; 
+                    color: white;
+                    border-radius: 8px;
+                }
+            )");
+
+            connect(m_removeButton, &QToolButton::clicked, this, [this](){
+                emit removeRequested(this);
+            });
+
+            buttonLayout->addWidget(m_actionButton);
+            buttonLayout->addWidget(m_removeButton);
+            buttonLayout->addStretch();
+
+            imageLayout->addWidget(buttonContainer, 0, 0, Qt::AlignTop | Qt::AlignRight);
         } else { // Bookmark mode
-            m_actionButton->setText("✕");
-            m_actionButton->setToolTip(tr("Remove bookmark"));
+            // [2024-12-19] 북마크 모드에서는 별 버튼만 표시 (클릭 시 북마크 제거)
+            m_actionButton->setCheckable(true);
+            m_actionButton->setChecked(true);
+            m_actionButton->setIcon(QIcon(":/icons/icons/star_24dp_F4731F_FILL0_wght400_GRAD0_opsz24.svg"));
+            m_actionButton->setToolTip(tr("Click to remove bookmark"));
+            
+            // 북마크 모드에서 별 버튼 클릭 시 북마크 제거
             connect(m_actionButton, &QToolButton::clicked, this, [this](){
                 emit removeRequested(this);
             });
+
+            // 북마크 모드에서도 버튼을 올바른 위치에 배치
+            imageLayout->addWidget(m_actionButton, 0, 0, Qt::AlignTop | Qt::AlignRight);
         }
 
         imageLayout->addWidget(m_imageLabel, 0, 0, Qt::AlignCenter);
-        imageLayout->addWidget(m_actionButton, 0, 0, Qt::AlignTop | Qt::AlignRight);
 
         mainLay->addWidget(imageArea);
     }
@@ -2359,7 +2461,12 @@ EventCard::EventCard(const QString& cameraName,
         info->addWidget(e);
         mainLay->addLayout(info);
     }
+
+    // [2024-12-19] EventCard 클릭 이벤트 추가
+    setMouseTracking(true);
+    setCursor(Qt::PointingHandCursor);
 }
+
 
 // Update the setStarChecked helper function to use m_actionButton
 void EventCard::setStarChecked(bool checked)
@@ -2373,28 +2480,96 @@ void EventCard::setStarChecked(bool checked)
         ));
     m_actionButton->blockSignals(b);
 }
+// [2024-12-19] EventCard 클릭 이벤트 구현
+void EventCard::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        // 클릭된 위치 확인
+        QWidget *clickedWidget = childAt(event->pos());
+        
+        // 버튼 클릭이 아닌 경우에만 팝업 표시
+        if (!clickedWidget || 
+            (clickedWidget != m_actionButton && 
+             clickedWidget != m_removeButton &&
+             !clickedWidget->inherits("QToolButton"))) {
+            
+            // 팝업 다이얼로그 표시
+            EventCardPopupDialog *dialog = new EventCardPopupDialog(
+                m_camera, m_event, m_ts, m_imageUrl, this);
+            dialog->exec();
+            dialog->deleteLater();
+        }
+    }
+    QFrame::mousePressEvent(event);
+}
+
+
 
 void MainWindow::onBookmarkRemoveRequested(EventCard* card)
 {
-    // Find the original EventCard in the event list
+    // [2024-12-19] 원본 이벤트 카드의 별 상태 업데이트
     for (EventCard* ec : this->findChildren<EventCard*>()) {
-        // Make sure we are only checking original Event cards, not other bookmarks
+        // 원본 이벤트 카드만 확인 (북마크가 아닌)
         if (ec->mode() == EventCard::Event &&
             ec->cameraName() == card->cameraName() &&
+            ec->eventText() == card->eventText() &&
             ec->timestamp() == card->timestamp())
         {
-            // Un-check the star on the original event card.
-            // This only updates the UI, it won't re-emit a signal.
+            // 원본 이벤트 카드의 별을 해제 (UI만 업데이트, 시그널 재발생 안함)
             ec->setStarChecked(false);
-            break; // Found it, no need to search further
+            break; // 찾았으면 더 이상 검색하지 않음
         }
     }
 
-    // ▼▼▼ ADD THIS MISSING LOGIC ▼▼▼
-    // Now, explicitly remove the bookmark card that was clicked.
+    // 북마크 카드 제거
     bookmarkLay->removeWidget(card);
     card->deleteLater();
 }
+
+
+// [2024-12-19] 이벤트 삭제 기능 추가
+void MainWindow::onEventRemoveRequested(EventCard* card)
+{
+    if (!eventLay) return;
+
+    // 이벤트 레이아웃에서 카드 제거
+    eventLay->removeWidget(card);
+    
+    // [2024-12-19] m_eventData에서는 제거하지 않음 (EventSearchDialog에서 계속 보이도록)
+    // for (int i = 0; i < m_eventData.size(); ++i) {
+    //     if (m_eventData[i].cam == card->cameraName() &&
+    //         m_eventData[i].txt == card->eventText() &&
+    //         m_eventData[i].ts == card->timestamp()) {
+    //         m_eventData.removeAt(i);
+    //         break;
+    //     }
+    // }
+
+    // [2024-12-19] 북마크에서도 해당 이벤트 제거
+    if (bookmarkLay) {
+        for (int i = 0; i < bookmarkLay->count(); ++i) {
+            if (auto *bf = qobject_cast<EventCard*>(bookmarkLay->itemAt(i)->widget())) {
+                if (bf->mode() == EventCard::Bookmark &&
+                    bf->cameraName() == card->cameraName() &&
+                    bf->eventText() == card->eventText() &&
+                    bf->timestamp() == card->timestamp()) {
+                    bookmarkLay->removeWidget(bf);
+                    bf->deleteLater();
+                    break;
+                }
+            }
+        }
+    }
+
+    // [2024-12-19] EventSearchDialog 업데이트 제거 (데이터를 유지하므로 업데이트 불필요)
+    // if (m_eventSearchDialog && m_eventSearchDialog->isVisible()) {
+    //     m_eventSearchDialog->updateEventData(m_eventData);
+    // }
+
+    // 카드 삭제
+    card->deleteLater();
+}
+
 
 // 4. Update onCardStarToggled to use the new system
 void MainWindow::onCardStarToggled(EventCard* card, bool checked)
@@ -2994,6 +3169,8 @@ EventSearchDialog::~EventSearchDialog()
 
 void EventSearchDialog::populateTable(const QList<MainWindow::RawEv>& eventData)
 {
+    // [2024-12-19] 필터링된 데이터 저장 (테이블 선택 시 이미지 로드용)
+    m_filteredEventData = eventData;
     resultsTable->setRowCount(0); // Clear existing data
 
     // 실제 이벤트 데이터를 테이블에 추가
@@ -3181,8 +3358,10 @@ void EventSearchDialog::setupUi()
     rightVBox->setContentsMargins(0,0,0,0);
     rightVBox->setSpacing(10);
 
-    imagePreview = new QLabel(rightPanel);
+    // [2024-12-19] 이미지 향상 기능 추가 - DragDropImageLabel 사용
+    imagePreview = new DragDropImageLabel(rightPanel);
     imagePreview->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    imagePreview->setMinimumHeight(300);  // 이미지 크기 축소 (기존 460px → 400px)
 
     // 기본 이미지 로드
     QPixmap p(":/test/no_camera.png");
@@ -3193,6 +3372,17 @@ void EventSearchDialog::setupUi()
     imagePreview->setStyleSheet("background-color: #000000;");
     rightVBox->addWidget(imagePreview, 1);
 
+    // [2024-12-19] 드래그 앤 드롭 이벤트 연결
+    connect(imagePreview, &DragDropImageLabel::imageDropped, this, [this](const QPixmap &pixmap) {
+        m_originalPixmap = pixmap; // 원본 이미지 저장
+        QPixmap scaledPixmap = pixmap.scaledToWidth(400, Qt::SmoothTransformation);
+        imagePreview->setPixmap(scaledPixmap);
+        applyImageEnhancement(); // 이미지 향상 적용
+    });
+    
+    // [2024-12-19] 이미지 향상 컨트롤 추가
+    setupImageEnhancementControls();
+    rightVBox->addWidget(createImageEnhancementWidget());
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->setHandleWidth(1); // 스플리터 핸들 너비 조정
@@ -3351,9 +3541,9 @@ void EventSearchDialog::setupUi()
     // 이벤트 연결
     connect(searchBtn, &QPushButton::clicked, this, &EventSearchDialog::onSearchClicked);
     connect(resetBtn, &QPushButton::clicked, this, &EventSearchDialog::onResetClicked);
-    connect(deviceCombo, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+    connect(deviceCombo, static_cast<void(QComboBox::*)(const QString &)>(&QComboBox::currentTextChanged),
             this, &EventSearchDialog::onDeviceComboChanged);
-    connect(eventTypeCombo, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
+    connect(eventTypeCombo, static_cast<void(QComboBox::*)(const QString &)>(&QComboBox::currentTextChanged),
             this, &EventSearchDialog::onEventTypeComboChanged);
 
     // 디바이스 콤보박스에 실제 카메라 목록 추가
@@ -3363,14 +3553,14 @@ void EventSearchDialog::setupUi()
     // 초기 이미지 설정
     resetImagePreview();
 
-    // 테이블 선택 시 이미지 업데이트 연결
+    // [2024-12-19] 테이블 선택 시 이미지 업데이트 연결 (m_filteredEventData 사용)
     connect(resultsTable, &QTableWidget::itemSelectionChanged, this, [this]() {
         int currentRow = resultsTable->currentRow();
-        if (currentRow >= 0 && currentRow < m_originalEventData.size()) {
-            const auto& event = m_originalEventData[currentRow];
+        if (currentRow >= 0 && currentRow < m_filteredEventData.size()) {
+            const auto& event = m_filteredEventData[currentRow];
             if (!event.imageUrl.isEmpty()) {
                 // 네트워크에서 이미지 로드
-                QNetworkRequest request{QUrl(event.imageUrl)};
+                QNetworkRequest request(QUrl(event.imageUrl));
                 QNetworkReply *reply = m_networkManager->get(request);
                 reply->ignoreSslErrors();
 
@@ -3379,30 +3569,39 @@ void EventSearchDialog::setupUi()
                     if (reply->error() == QNetworkReply::NoError) {
                         QPixmap pixmap;
                         if (pixmap.loadFromData(reply->readAll())) {
-                            QPixmap scaledPixmap = pixmap.scaledToWidth(460, Qt::SmoothTransformation);
+                            m_originalPixmap = pixmap; // 원본 이미지 저장
+                            QPixmap scaledPixmap = pixmap.scaledToWidth(400, Qt::SmoothTransformation);
                             imagePreview->setPixmap(scaledPixmap);
+                            applyImageEnhancement(); // 이미지 향상 적용
                         } else {
                             // 이미지 로드 실패 시 기본 이미지 표시
                             QPixmap p(":/test/test_img_2.png");
-                            QPixmap scaledPixmap = p.scaledToWidth(460, Qt::SmoothTransformation);
+                            m_originalPixmap = p; // 원본 이미지 저장
+                            QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                             imagePreview->setPixmap(scaledPixmap);
+                            applyImageEnhancement(); // 이미지 향상 적용
                         }
                     } else {
                         // 네트워크 오류 시 기본 이미지 표시
                         QPixmap p(":/test/test_img_2.png");
-                        QPixmap scaledPixmap = p.scaledToWidth(460, Qt::SmoothTransformation);
+                        m_originalPixmap = p; // 원본 이미지 저장
+                        QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                         imagePreview->setPixmap(scaledPixmap);
+                        applyImageEnhancement(); // 이미지 향상 적용
                     }
                 });
             } else {
                 // 기본 이미지 표시
                 QPixmap p(":/test/test_img_2.png");
-                QPixmap scaledPixmap = p.scaledToWidth(460, Qt::SmoothTransformation);
+                m_originalPixmap = p; // 원본 이미지 저장
+                QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                 imagePreview->setPixmap(scaledPixmap);
+                applyImageEnhancement(); // 이미지 향상 적용
             }
         }
     });
 }
+
 
 // Event handlers for the frameless window
 void EventSearchDialog::mousePressEvent(QMouseEvent *event)
@@ -3431,6 +3630,59 @@ void EventSearchDialog::mouseReleaseEvent(QMouseEvent *event)
 {
     isDragging = false;
     QDialog::mouseReleaseEvent(event);
+}
+
+
+// ===================================================================
+// [2024-12-19] EventSearchDialog 드래그 앤 드롭 이벤트 핸들러
+// ===================================================================
+void EventSearchDialog::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasImage() || 
+        event->mimeData()->hasUrls() || 
+        event->mimeData()->hasFormat("text/uri-list")) {
+        event->acceptProposedAction();
+    }
+}
+
+void EventSearchDialog::dropEvent(QDropEvent *event)
+{
+    QPixmap pixmap;
+    
+    // 이미지 데이터 직접 처리
+    if (event->mimeData()->hasImage()) {
+        QImage image = qvariant_cast<QImage>(event->mimeData()->imageData());
+        pixmap = QPixmap::fromImage(image);
+    }
+    // URL 처리
+    else if (event->mimeData()->hasUrls()) {
+        QList<QUrl> urls = event->mimeData()->urls();
+        if (!urls.isEmpty()) {
+            QString filePath = urls.first().toLocalFile();
+            if (!filePath.isEmpty()) {
+                pixmap.load(filePath);
+            }
+        }
+    }
+    // text/uri-list 처리
+    else if (event->mimeData()->hasFormat("text/uri-list")) {
+        QString uriList = QString::fromUtf8(event->mimeData()->data("text/uri-list"));
+        QStringList uris = uriList.split("\n", Qt::SkipEmptyParts);
+        if (!uris.isEmpty()) {
+            QUrl url(uris.first());
+            QString filePath = url.toLocalFile();
+            if (!filePath.isEmpty()) {
+                pixmap.load(filePath);
+            }
+        }
+    }
+    
+    if (!pixmap.isNull()) {
+        m_originalPixmap = pixmap; // 원본 이미지 저장
+        QPixmap scaledPixmap = pixmap.scaledToWidth(460, Qt::SmoothTransformation);
+        imagePreview->setPixmap(scaledPixmap);
+        applyImageEnhancement(); // 이미지 향상 적용
+    }
 }
 
 
@@ -3695,9 +3947,17 @@ void MainWindow::addEvent(const QString &cam, const QString &txt, const QDateTim
     // 실시간 이벤트를 m_eventData에 추가
     m_eventData.prepend({cam, txt, ts, imageUrl});
 
+    // [2024-12-19] 연속 감지 로직 추가
+    qDebug() << "[addEvent] 이벤트 텍스트:" << txt;
+    if (txt.contains("PPE Violation", Qt::CaseInsensitive)) {
+        qDebug() << "[addEvent] PPE Violation 감지됨! 연속 감지 처리 시작";
+        handleContinuousDetection(cam, imageUrl);
+    }
+
     // 실시간 이벤트만 메인 화면에 표시
     EventCard *card = new EventCard(cam, txt, ts, imageUrl, EventCard::Event, eventContainer);
     connect(card, &EventCard::starToggled, this, &MainWindow::onCardStarToggled);
+    connect(card, &EventCard::removeRequested, this, &MainWindow::onEventRemoveRequested);
 
     // 새 카드를 목록의 맨 위에 추가 (스트레치 아이템 위)
     eventLay->insertWidget(0, card);
@@ -3751,8 +4011,11 @@ void EventSearchDialog::onEventTypeComboChanged(const QString &eventType)
 void EventSearchDialog::filterAndPopulateTable()
 {
     QList<MainWindow::RawEv> filteredData = filterEvents();
+    // [2024-12-19] 필터링된 데이터 저장 (테이블 선택 시 이미지 로드용)
+    m_filteredEventData = filteredData;
     populateTable(filteredData);
 }
+
 
 QList<MainWindow::RawEv> EventSearchDialog::filterEvents()
 {
@@ -3825,13 +4088,14 @@ void EventSearchDialog::populateEventTypeCombo()
 void EventSearchDialog::updateEventData(const QList<MainWindow::RawEv>& eventData)
 {
     m_originalEventData = eventData;
+    // [2024-12-19] 필터링된 데이터 저장 (테이블 선택 시 이미지 로드용)
+    m_filteredEventData = eventData;
     populateDeviceCombo();
     populateEventTypeCombo();
 
     // 항상 전체 데이터를 표시하고, 사용자가 직접 검색 버튼을 눌러야 필터링됨
     populateTable(eventData);
 }
-
 // ===================================================================
 // 과거 로그 로딩 관련 메서드들
 // ===================================================================
@@ -4098,3 +4362,852 @@ void MainWindow::startHealthCheck(const QString &ip)
     m_healthCheckTimers[ip] = timer;
     timer->start(5000); // 5초
 }
+
+
+// EventSearchDialog 이미지 향상 기능 구현
+// ===================================================================
+// [2024-12-19] EventSearchDialog 이미지 향상 기능 구현
+// ===================================================================
+void EventSearchDialog::setupImageEnhancementControls()
+{
+    // 슬라이더와 라벨 초기화는 createImageEnhancementWidget에서 처리
+}
+
+QWidget* EventSearchDialog::createImageEnhancementWidget()
+{
+    auto *widget = new QWidget(this);
+    auto *layout = new QVBoxLayout(widget);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(15);
+    
+    // 제목
+    auto *titleLabel = new QLabel("이미지 향상", widget);
+    titleLabel->setStyleSheet("font-weight: bold; color: #e0e0e0; font-size: 14px;");
+    layout->addWidget(titleLabel);
+    
+    // 샤프닝 컨트롤
+    auto *sharpnessGroup = new QWidget(widget);
+    auto *sharpnessLayout = new QHBoxLayout(sharpnessGroup);
+    sharpnessLayout->setContentsMargins(0, 0, 0, 0);
+    
+    sharpnessLabel = new QLabel("샤프닝: 0", widget);
+    sharpnessLabel->setStyleSheet("color: #d0d0d0; min-width: 80px;");
+    
+    sharpnessSlider = new QSlider(Qt::Horizontal, widget);
+    sharpnessSlider->setRange(-100, 100);
+    sharpnessSlider->setValue(0);
+    sharpnessSlider->setStyleSheet(R"(
+        QSlider::groove:horizontal {
+            border: 1px solid #555;
+            height: 8px;
+            background: #2b2b2b;
+            border-radius: 4px;
+        }
+        QSlider::handle:horizontal {
+            background: #F4731F;
+            border: 1px solid #F4731F;
+            width: 18px;
+            margin: -2px 0;
+            border-radius: 9px;
+        }
+        QSlider::sub-page:horizontal {
+            background: #F4731F;
+            border-radius: 4px;
+        }
+    )");
+    
+    connect(sharpnessSlider, &QSlider::valueChanged, this, &EventSearchDialog::onSharpnessChanged);
+    
+    sharpnessLayout->addWidget(sharpnessLabel);
+    sharpnessLayout->addWidget(sharpnessSlider);
+    layout->addWidget(sharpnessGroup);
+    
+    // 대비 컨트롤
+    auto *contrastGroup = new QWidget(widget);
+    auto *contrastLayout = new QHBoxLayout(contrastGroup);
+    contrastLayout->setContentsMargins(0, 0, 0, 0);
+    
+    contrastLabel = new QLabel("대비: 0", widget);
+    contrastLabel->setStyleSheet("color: #d0d0d0; min-width: 80px;");
+    
+    contrastSlider = new QSlider(Qt::Horizontal, widget);
+    contrastSlider->setRange(-100, 100);
+    contrastSlider->setValue(0);
+    contrastSlider->setStyleSheet(R"(
+        QSlider::groove:horizontal {
+            border: 1px solid #555;
+            height: 8px;
+            background: #2b2b2b;
+            border-radius: 4px;
+        }
+        QSlider::handle:horizontal {
+            background: #F4731F;
+            border: 1px solid #F4731F;
+            width: 18px;
+            margin: -2px 0;
+            border-radius: 9px;
+        }
+        QSlider::sub-page:horizontal {
+            background: #F4731F;
+            border-radius: 4px;
+        }
+    )");
+    
+    connect(contrastSlider, &QSlider::valueChanged, this, &EventSearchDialog::onContrastChanged);
+    
+    contrastLayout->addWidget(contrastLabel);
+    contrastLayout->addWidget(contrastSlider);
+    layout->addWidget(contrastGroup);
+    
+    return widget;
+}
+
+QPixmap EventSearchDialog::enhanceSharpness(const QPixmap &pixmap, int level)
+{
+    if (pixmap.isNull()) return pixmap;
+
+    QImage qimg = pixmap.toImage().convertToFormat(QImage::Format_RGB888);
+    cv::Mat mat(qimg.height(), qimg.width(), CV_8UC3,
+                (uchar*)qimg.bits(), qimg.bytesPerLine());
+
+    if (level == 0) {
+        return pixmap; // 원본
+    }
+
+    cv::Mat result;
+    if (level > 0) {
+        // 양수 → 선명도 강화
+        float alpha = 1.0f + (level / 50.0f); // 예: +50이면 2.0배
+        cv::Mat blurred;
+        cv::GaussianBlur(mat, blurred, cv::Size(0,0), 3);
+        cv::addWeighted(mat, alpha, blurred, -(alpha - 1.0f), 0, result);
+    } else {
+        // 음수 → 블러 효과
+        int ksize = std::max(1, -level / 10 * 2 + 1); // level=-100일 때 큰 커널
+        cv::GaussianBlur(mat, result, cv::Size(ksize, ksize), 0);
+    }
+
+    QImage resultImg((uchar*)result.data,
+                     result.cols, result.rows,
+                     result.step,
+                     QImage::Format_RGB888);
+    return QPixmap::fromImage(resultImg.copy());
+}
+
+void EventSearchDialog::onSharpnessChanged(int value)
+{
+    sharpnessLabel->setText(QString("샤프닝: %1").arg(value));
+    applyImageEnhancement();
+}
+
+void EventSearchDialog::onContrastChanged(int value)
+{
+    contrastLabel->setText(QString("대비: %1").arg(value));
+    applyImageEnhancement();
+}
+
+void EventSearchDialog::applyImageEnhancement()
+{
+    if (m_originalPixmap.isNull()) return;
+    
+    QPixmap result = m_originalPixmap;
+    
+    // 샤프닝 적용
+    if (sharpnessSlider && sharpnessSlider->value() != 0) {
+        result = enhanceSharpness(result, sharpnessSlider->value());
+    }
+    
+    // 대비 적용
+    if (contrastSlider && contrastSlider->value() != 0) {
+        result = enhanceCLAHE(result, contrastSlider->value());
+    }
+    
+    // 결과 이미지 표시
+    QPixmap scaledPixmap = result.scaledToWidth(400, Qt::SmoothTransformation);
+    imagePreview->setPixmap(scaledPixmap);
+}
+
+QPixmap EventSearchDialog::enhanceCLAHE(const QPixmap &pixmap, int level)
+{
+    if (pixmap.isNull()) return pixmap;
+
+    QImage qimg = pixmap.toImage().convertToFormat(QImage::Format_RGB888);
+    cv::Mat mat(qimg.height(), qimg.width(), CV_8UC3,
+                (uchar*)qimg.bits(), qimg.bytesPerLine());
+
+    if (level == 0) {
+        return pixmap; // 원본
+    }
+
+    cv::Mat result;
+    if (level > 0) {
+        // CLAHE로 대비 강화
+        cv::Mat labImg;
+        cv::cvtColor(mat, labImg, cv::COLOR_RGB2Lab);
+        std::vector<cv::Mat> labPlanes(3);
+        cv::split(labImg, labPlanes);
+
+        int clipLimit = std::min(2 + level / 20, 10); // level=100 → 약 clipLimit=7
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(clipLimit, cv::Size(8, 8));
+        clahe->apply(labPlanes[0], labPlanes[0]);
+
+        cv::merge(labPlanes, labImg);
+        cv::cvtColor(labImg, result, cv::COLOR_Lab2RGB);
+    } else {
+        // 음수 → 대비 약화 (가벼운 블러)
+        int ksize = std::max(1, -level / 20 * 2 + 1);
+        cv::GaussianBlur(mat, result, cv::Size(ksize, ksize), 0);
+    }
+
+    QImage resultImg((uchar*)result.data,
+                     result.cols, result.rows,
+                     result.step,
+                     QImage::Format_RGB888);
+    return QPixmap::fromImage(resultImg.copy());
+}
+
+// ===================================================================
+// [2024-12-19] EventCardPopupDialog 클래스 구현
+// EventCard 클릭 시 이미지와 이미지 향상 기능을 제공하는 팝업창
+// ===================================================================
+EventCardPopupDialog::EventCardPopupDialog(const QString& cameraName,
+                                           const QString& eventText,
+                                           const QDateTime& timestamp,
+                                           const QString& imageUrl,
+                                           QWidget *parent)
+    : QDialog(parent),
+      m_cameraName(cameraName),
+      m_eventText(eventText),
+      m_timestamp(timestamp),
+      m_imageUrl(imageUrl),
+      m_networkManager(new QNetworkAccessManager(this)),
+      isDragging(false)
+{
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
+    setAttribute(Qt::WA_TranslucentBackground);
+    setModal(true);
+    setFixedSize(600, 500);
+    
+    setupUi();
+    loadImage();
+}
+
+void EventCardPopupDialog::setupUi()
+{
+    // 메인 레이아웃
+    auto *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // 배경 프레임
+    auto *background = new QFrame(this);
+    background->setStyleSheet(R"(
+        QFrame {
+            background-color: #2b2b2b;
+            border: 1px solid #5c5c5c;
+            border-radius: 8px;
+        }
+    )");
+
+    auto *contentLayout = new QVBoxLayout(background);
+    contentLayout->setContentsMargins(20, 20, 20, 20);
+    contentLayout->setSpacing(15);
+
+    // 제목 바
+    auto *titleBar = new QFrame(background);
+    auto *titleLayout = new QHBoxLayout(titleBar);
+    titleLayout->setContentsMargins(0, 0, 0, 0);
+
+    auto *titleLabel = new QLabel(QString("이벤트 상세 - %1").arg(m_cameraName), titleBar);
+    titleLabel->setStyleSheet("color: #e0e0e0; font-size: 16px; font-weight: bold;");
+
+    auto *closeBtn = new QToolButton(titleBar);
+    closeBtn->setText("✕");
+    closeBtn->setFixedSize(28, 28);
+    closeBtn->setStyleSheet(R"(
+        QToolButton {
+            background-color: transparent;
+            color: #d0d0d0;
+            border: none;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        QToolButton:hover {
+            background-color: red;
+            color: white;
+        }
+    )");
+
+    titleLayout->addWidget(titleLabel);
+    titleLayout->addStretch();
+    titleLayout->addWidget(closeBtn);
+
+    // 이벤트 정보
+    auto *infoFrame = new QFrame(background);
+    infoFrame->setStyleSheet("background-color: #3c3c3c; border-radius: 4px; padding: 10px;");
+    auto *infoLayout = new QVBoxLayout(infoFrame);
+    infoLayout->setContentsMargins(15, 15, 15, 15);
+    infoLayout->setSpacing(8);
+
+    auto *eventLabel = new QLabel(m_eventText, infoFrame);
+    eventLabel->setStyleSheet("color: #f4731f; font-size: 14px; font-weight: bold;");
+    eventLabel->setWordWrap(true);
+
+    auto *timeLabel = new QLabel(m_timestamp.toString("yyyy-MM-dd hh:mm:ss"), infoFrame);
+    timeLabel->setStyleSheet("color: #b0b0b0; font-size: 12px;");
+
+    infoLayout->addWidget(eventLabel);
+    infoLayout->addWidget(timeLabel);
+
+    // 이미지 미리보기
+    imagePreview = new QLabel(background);
+    imagePreview->setMinimumSize(400, 300);
+    imagePreview->setAlignment(Qt::AlignCenter);
+    imagePreview->setStyleSheet("background-color: #000000; border: 1px solid #555; border-radius: 4px;");
+
+    // 이미지 향상 컨트롤
+    auto *enhancementWidget = createImageEnhancementWidget();
+
+    contentLayout->addWidget(titleBar);
+    contentLayout->addWidget(infoFrame);
+    contentLayout->addWidget(imagePreview, 1);
+    contentLayout->addWidget(enhancementWidget);
+
+    mainLayout->addWidget(background);
+
+    // 이벤트 연결
+    connect(closeBtn, &QToolButton::clicked, this, &QDialog::accept);
+}
+
+void EventCardPopupDialog::loadImage()
+{
+    if (m_imageUrl.isEmpty()) {
+        // 기본 이미지 표시
+        QPixmap p(":/test/no_camera.png");
+        m_originalPixmap = p;
+        QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
+        imagePreview->setPixmap(scaledPixmap);
+        applyImageEnhancement();
+        return;
+    }
+
+    // 네트워크에서 이미지 로드
+    QNetworkRequest request{QUrl(m_imageUrl)};
+    QNetworkReply *reply = m_networkManager->get(request);
+    reply->ignoreSslErrors();
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() == QNetworkReply::NoError) {
+            QPixmap pixmap;
+            if (pixmap.loadFromData(reply->readAll())) {
+                m_originalPixmap = pixmap;
+                QPixmap scaledPixmap = pixmap.scaledToWidth(400, Qt::SmoothTransformation);
+                imagePreview->setPixmap(scaledPixmap);
+                applyImageEnhancement();
+            } else {
+                // 이미지 로드 실패 시 기본 이미지 표시
+                QPixmap p(":/test/test_img_2.png");
+                m_originalPixmap = p;
+                QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
+                imagePreview->setPixmap(scaledPixmap);
+                applyImageEnhancement();
+            }
+        } else {
+            // 네트워크 오류 시 기본 이미지 표시
+            QPixmap p(":/test/test_img_2.png");
+            m_originalPixmap = p;
+            QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
+            imagePreview->setPixmap(scaledPixmap);
+            applyImageEnhancement();
+        }
+    });
+}
+
+void EventCardPopupDialog::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        isDragging = true;
+        dragPosition = event->globalPosition().toPoint() - this->pos();
+    }
+    QDialog::mousePressEvent(event);
+}
+
+void EventCardPopupDialog::mouseMoveEvent(QMouseEvent *event)
+{
+    if ((event->buttons() & Qt::LeftButton) && isDragging) {
+        move(event->globalPosition().toPoint() - dragPosition);
+    }
+    QDialog::mouseMoveEvent(event);
+}
+
+void EventCardPopupDialog::mouseReleaseEvent(QMouseEvent *event)
+{
+    isDragging = false;
+    QDialog::mouseReleaseEvent(event);
+}
+
+void EventCardPopupDialog::onSharpnessChanged(int value)
+{
+    sharpnessLabel->setText(QString("샤프닝: %1").arg(value));
+    applyImageEnhancement();
+}
+
+void EventCardPopupDialog::onContrastChanged(int value)
+{
+    contrastLabel->setText(QString("대비: %1").arg(value));
+    applyImageEnhancement();
+}
+
+void EventCardPopupDialog::applyImageEnhancement()
+{
+    if (m_originalPixmap.isNull()) return;
+    
+    QPixmap result = m_originalPixmap;
+    
+    // 샤프닝 적용
+    if (sharpnessSlider && sharpnessSlider->value() != 0) {
+        result = enhanceSharpness(result, sharpnessSlider->value());
+    }
+    
+    // 대비 적용
+    if (contrastSlider && contrastSlider->value() != 0) {
+        result = enhanceCLAHE(result, contrastSlider->value());
+    }
+    
+    // 결과 이미지 표시
+    QPixmap scaledPixmap = result.scaledToWidth(400, Qt::SmoothTransformation);
+    imagePreview->setPixmap(scaledPixmap);
+}
+
+QWidget* EventCardPopupDialog::createImageEnhancementWidget()
+{
+    auto *widget = new QWidget(this);
+    auto *layout = new QVBoxLayout(widget);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(15);
+    
+    // 제목
+    auto *titleLabel = new QLabel("이미지 향상", widget);
+    titleLabel->setStyleSheet("font-weight: bold; color: #e0e0e0; font-size: 14px;");
+    layout->addWidget(titleLabel);
+    
+    // 샤프닝 컨트롤
+    auto *sharpnessGroup = new QWidget(widget);
+    auto *sharpnessLayout = new QHBoxLayout(sharpnessGroup);
+    sharpnessLayout->setContentsMargins(0, 0, 0, 0);
+    
+    sharpnessLabel = new QLabel("샤프닝: 0", widget);
+    sharpnessLabel->setStyleSheet("color: #d0d0d0; min-width: 80px;");
+    
+    sharpnessSlider = new QSlider(Qt::Horizontal, widget);
+    sharpnessSlider->setRange(-100, 100);
+    sharpnessSlider->setValue(0);
+    sharpnessSlider->setStyleSheet(R"(
+        QSlider::groove:horizontal {
+            border: 1px solid #555;
+            height: 8px;
+            background: #2b2b2b;
+            border-radius: 4px;
+        }
+        QSlider::handle:horizontal {
+            background: #F4731F;
+            border: 1px solid #F4731F;
+            width: 18px;
+            margin: -2px 0;
+            border-radius: 9px;
+        }
+        QSlider::sub-page:horizontal {
+            background: #F4731F;
+            border-radius: 4px;
+        }
+    )");
+    
+    connect(sharpnessSlider, &QSlider::valueChanged, this, &EventCardPopupDialog::onSharpnessChanged);
+    
+    sharpnessLayout->addWidget(sharpnessLabel);
+    sharpnessLayout->addWidget(sharpnessSlider);
+    layout->addWidget(sharpnessGroup);
+    
+    // 대비 컨트롤
+    auto *contrastGroup = new QWidget(widget);
+    auto *contrastLayout = new QHBoxLayout(contrastGroup);
+    contrastLayout->setContentsMargins(0, 0, 0, 0);
+    
+    contrastLabel = new QLabel("대비: 0", widget);
+    contrastLabel->setStyleSheet("color: #d0d0d0; min-width: 80px;");
+    
+    contrastSlider = new QSlider(Qt::Horizontal, widget);
+    contrastSlider->setRange(-100, 100);
+    contrastSlider->setValue(0);
+    contrastSlider->setStyleSheet(R"(
+        QSlider::groove:horizontal {
+            border: 1px solid #555;
+            height: 8px;
+            background: #2b2b2b;
+            border-radius: 4px;
+        }
+        QSlider::handle:horizontal {
+            background: #F4731F;
+            border: 1px solid #F4731F;
+            width: 18px;
+            margin: -2px 0;
+            border-radius: 9px;
+        }
+        QSlider::sub-page:horizontal {
+            background: #F4731F;
+            border-radius: 4px;
+        }
+    )");
+    
+    connect(contrastSlider, &QSlider::valueChanged, this, &EventCardPopupDialog::onContrastChanged);
+    
+    contrastLayout->addWidget(contrastLabel);
+    contrastLayout->addWidget(contrastSlider);
+    layout->addWidget(contrastGroup);
+    
+    return widget;
+}
+
+QPixmap EventCardPopupDialog::enhanceSharpness(const QPixmap &pixmap, int level)
+{
+    if (pixmap.isNull()) return pixmap;
+
+    QImage qimg = pixmap.toImage().convertToFormat(QImage::Format_RGB888);
+    cv::Mat mat(qimg.height(), qimg.width(), CV_8UC3,
+                (uchar*)qimg.bits(), qimg.bytesPerLine());
+
+    if (level == 0) {
+        return pixmap; // 원본
+    }
+
+    cv::Mat result;
+    if (level > 0) {
+        // 양수 → 선명도 강화
+        float alpha = 1.0f + (level / 50.0f); // 예: +50이면 2.0배
+        cv::Mat blurred;
+        cv::GaussianBlur(mat, blurred, cv::Size(0,0), 3);
+        cv::addWeighted(mat, alpha, blurred, -(alpha - 1.0f), 0, result);
+    } else {
+        // 음수 → 블러 효과
+        int ksize = std::max(1, -level / 10 * 2 + 1); // level=-100일 때 큰 커널
+        cv::GaussianBlur(mat, result, cv::Size(ksize, ksize), 0);
+    }
+
+    QImage resultImg((uchar*)result.data,
+                     result.cols, result.rows,
+                     result.step,
+                     QImage::Format_RGB888);
+    return QPixmap::fromImage(resultImg.copy());
+}
+
+QPixmap EventCardPopupDialog::enhanceCLAHE(const QPixmap &pixmap, int level)
+{
+    if (pixmap.isNull()) return pixmap;
+
+    QImage qimg = pixmap.toImage().convertToFormat(QImage::Format_RGB888);
+    cv::Mat mat(qimg.height(), qimg.width(), CV_8UC3,
+                (uchar*)qimg.bits(), qimg.bytesPerLine());
+
+    if (level == 0) {
+        return pixmap; // 원본
+    }
+
+    cv::Mat result;
+    if (level > 0) {
+        // CLAHE로 대비 강화
+        cv::Mat labImg;
+        cv::cvtColor(mat, labImg, cv::COLOR_RGB2Lab);
+        std::vector<cv::Mat> labPlanes(3);
+        cv::split(labImg, labPlanes);
+
+        int clipLimit = std::min(2 + level / 20, 10); // level=100 → 약 clipLimit=7
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(clipLimit, cv::Size(8, 8));
+        clahe->apply(labPlanes[0], labPlanes[0]);
+
+        cv::merge(labPlanes, labImg);
+        cv::cvtColor(labImg, result, cv::COLOR_Lab2RGB);
+    } else {
+        // 음수 → 대비 약화 (가벼운 블러)
+        int ksize = std::max(1, -level / 20 * 2 + 1);
+        cv::GaussianBlur(mat, result, cv::Size(ksize, ksize), 0);
+    }
+
+    QImage resultImg((uchar*)result.data,
+                     result.cols, result.rows,
+                     result.step,
+                     QImage::Format_RGB888);
+    return QPixmap::fromImage(resultImg.copy());
+}
+
+// ===================================================================
+// [2024-12-19] 연속 감지 관련 함수들 구현
+// ===================================================================
+
+void MainWindow::handleContinuousDetection(const QString& cameraName, const QString& imageUrl)
+{
+    QDateTime currentTime = QDateTime::currentDateTime();
+    
+    qDebug() << "[연속감지] 카메라:" << cameraName << "이미지URL:" << imageUrl;
+    
+    // 첫 번째 감지인지 확인
+    if (!m_detectionCount.contains(cameraName)) {
+        m_detectionCount[cameraName] = 1;
+        m_firstDetectionTime[cameraName] = currentTime;
+        
+        // 기존 타이머가 있다면 정리
+        if (m_detectionTimers.contains(cameraName)) {
+            QTimer *oldTimer = m_detectionTimers[cameraName];
+            oldTimer->stop();
+            oldTimer->deleteLater();
+            m_detectionTimers.remove(cameraName);
+        }
+        
+        qDebug() << "[연속감지] 첫 번째 감지 - 카운터 시작, 타이머 시작";
+        qDebug() << "[연속감지] 타이머 시작 시간:" << currentTime.toString("hh:mm:ss.zzz");
+        
+        // 5초 타이머 시작
+        QTimer *timer = new QTimer(this);
+        timer->setSingleShot(true);
+        connect(timer, &QTimer::timeout, this, [this, cameraName]() {
+            qDebug() << "[연속감지] 20초 타이머 타임아웃 - 카운터 리셋:" << cameraName;
+            qDebug() << "[연속감지] 타이머 종료 시간:" << QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+            resetDetectionCounter(cameraName);
+        });
+        m_detectionTimers[cameraName] = timer;
+        timer->start(20000); // 5초 (테스트용, 나중에 20000으로 변경)
+    } else {
+        // 기존 감지 카운터 증가
+        m_detectionCount[cameraName]++;
+        
+        qDebug() << "[연속감지] 감지 횟수:" << m_detectionCount[cameraName] << "/4";
+        
+        // 4번 감지되었는지 확인
+        if (m_detectionCount[cameraName] >= 4) {
+            qDebug() << "[연속감지] 4번 연속 감지! 팝업 표시";
+            
+            // 연속 감지 팝업 표시
+            showContinuousDetectionPopup(cameraName, imageUrl);
+            
+            // 카운터 및 타이머 리셋
+            resetDetectionCounter(cameraName);
+        }
+    }
+}
+
+void MainWindow::onDetectionTimerTimeout(const QString& cameraName)
+{
+    qDebug() << "[연속감지] 20초 타이머 타임아웃 - 카운터 리셋";
+    // 20초가 지나면 카운터 리셋
+    resetDetectionCounter(cameraName);
+}
+
+void MainWindow::resetDetectionCounter(const QString& cameraName)
+{
+    qDebug() << "[연속감지] 카운터 리셋:" << cameraName;
+    
+    // 카운터 및 타이머 정리
+    m_detectionCount.remove(cameraName);
+    m_firstDetectionTime.remove(cameraName);
+    
+    if (m_detectionTimers.contains(cameraName)) {
+        QTimer *timer = m_detectionTimers[cameraName];
+        timer->stop();
+        timer->deleteLater();
+        m_detectionTimers.remove(cameraName);
+    }
+}
+
+void MainWindow::showContinuousDetectionPopup(const QString& cameraName, const QString& imageUrl)
+{
+    qDebug() << "[연속감지] 팝업창 생성 및 표시";
+    
+    // 연속 감지 팝업 다이얼로그 표시
+    ContinuousDetectionPopupDialog *dialog = new ContinuousDetectionPopupDialog(cameraName, imageUrl, this);
+    dialog->show();
+    dialog->raise();
+    dialog->activateWindow();
+    
+    qDebug() << "[연속감지] 팝업창 표시 완료";
+}
+
+// ===================================================================
+// [2024-12-19] ContinuousDetectionPopupDialog 클래스 구현
+// ===================================================================
+ContinuousDetectionPopupDialog::ContinuousDetectionPopupDialog(const QString& cameraName,
+                                                               const QString& imageUrl,
+                                                               QWidget *parent)
+    : QDialog(parent),
+      m_cameraName(cameraName),
+      m_imageUrl(imageUrl),
+      m_networkManager(new QNetworkAccessManager(this)),
+      isDragging(false)
+{
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
+    setAttribute(Qt::WA_TranslucentBackground);
+    setModal(false); // 모달이 아닌 팝업으로 설정
+    setFixedSize(600, 600);
+    
+    setupUi();
+    loadImage();
+}
+
+void ContinuousDetectionPopupDialog::setupUi()
+{
+    // 메인 레이아웃
+    auto *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // 배경 프레임
+    auto *background = new QFrame(this);
+    background->setStyleSheet(R"(
+        QFrame {
+            background-color: #2b2b2b;
+            border: 2px solid #f4731f;
+            border-radius: 8px;
+        }
+    )");
+
+    auto *contentLayout = new QVBoxLayout(background);
+    contentLayout->setContentsMargins(20, 20, 20, 20);
+    contentLayout->setSpacing(15);
+
+    // 제목 바
+    auto *titleBar = new QFrame(background);
+    auto *titleLayout = new QHBoxLayout(titleBar);
+    titleLayout->setContentsMargins(0, 0, 0, 0);
+
+    auto *titleLabel = new QLabel(QString("🚨 연속 감지 알림 - %1").arg(m_cameraName), titleBar);
+    titleLabel->setStyleSheet("color: #f4731f; font-size: 16px; font-weight: bold;");
+
+    auto *closeBtn = new QToolButton(titleBar);
+    closeBtn->setText("✕");
+    closeBtn->setFixedSize(28, 28);
+    closeBtn->setStyleSheet(R"(
+        QToolButton {
+            background-color: transparent;
+            color: #d0d0d0;
+            border: none;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        QToolButton:hover {
+            background-color: red;
+            color: white;
+        }
+    )");
+
+    titleLayout->addWidget(titleLabel);
+    titleLayout->addStretch();
+    titleLayout->addWidget(closeBtn);
+
+    // 경고 메시지
+    auto *warningFrame = new QFrame(background);
+    warningFrame->setStyleSheet("background-color: #ff4444; border-radius: 4px; padding: 10px;");
+    auto *warningLayout = new QVBoxLayout(warningFrame);
+    warningLayout->setContentsMargins(15, 15, 15, 15);
+    warningLayout->setSpacing(8);
+
+    auto *warningLabel = new QLabel("⚠️ 20초 안에 4번 연속 PPE 위반 감지되었습니다!", warningFrame);
+    warningLabel->setStyleSheet("color: white; font-size: 14px; font-weight: bold;");
+    warningLabel->setAlignment(Qt::AlignCenter);
+
+    auto *timeLabel = new QLabel(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"), warningFrame);
+    timeLabel->setStyleSheet("color: white; font-size: 12px;");
+    timeLabel->setAlignment(Qt::AlignCenter);
+
+    warningLayout->addWidget(warningLabel);
+    warningLayout->addWidget(timeLabel);
+
+    // 이미지 미리보기
+    imagePreview = new QLabel(background);
+    imagePreview->setFixedSize(400, 300); // 고정 크기로 설정
+    imagePreview->setAlignment(Qt::AlignCenter);
+    imagePreview->setStyleSheet("background-color: #000000; border: 1px solid #555; border-radius: 4px;");
+    imagePreview->setScaledContents(false); // 이미지 비율 유지
+
+    contentLayout->addWidget(titleBar);
+    contentLayout->addWidget(warningFrame);
+    
+    // 이미지를 중앙에 배치하기 위한 컨테이너
+    auto *imageContainer = new QFrame(background);
+    auto *imageContainerLayout = new QHBoxLayout(imageContainer);
+    imageContainerLayout->setContentsMargins(0, 0, 0, 0);
+    imageContainerLayout->addStretch();
+    imageContainerLayout->addWidget(imagePreview);
+    imageContainerLayout->addStretch();
+    
+    contentLayout->addWidget(imageContainer, 1);
+
+    mainLayout->addWidget(background);
+
+    // 이벤트 연결
+    connect(closeBtn, &QToolButton::clicked, this, &QDialog::accept);
+}
+
+void ContinuousDetectionPopupDialog::loadImage()
+{
+    if (m_imageUrl.isEmpty()) {
+        // 기본 이미지 표시
+        QPixmap p(":/test/no_camera.png");
+        m_originalPixmap = p;
+        QPixmap scaledPixmap = p.scaledToHeight(300, Qt::SmoothTransformation);
+        imagePreview->setPixmap(scaledPixmap);
+        return;
+    }
+
+    // 네트워크에서 이미지 로드
+    QNetworkRequest request{QUrl(m_imageUrl)};
+    QNetworkReply *reply = m_networkManager->get(request);
+    reply->ignoreSslErrors();
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() == QNetworkReply::NoError) {
+            QPixmap pixmap;
+            if (pixmap.loadFromData(reply->readAll())) {
+                m_originalPixmap = pixmap;
+                // 이미지를 높이에 맞춰 스케일링 (세로 짤림 방지)
+                QPixmap scaledPixmap = pixmap.scaledToHeight(300, Qt::SmoothTransformation);
+                imagePreview->setPixmap(scaledPixmap);
+            } else {
+                // 이미지 로드 실패 시 기본 이미지 표시
+                QPixmap p(":/test/test_img_2.png");
+                m_originalPixmap = p;
+                QPixmap scaledPixmap = p.scaledToHeight(300, Qt::SmoothTransformation);
+                imagePreview->setPixmap(scaledPixmap);
+            }
+        } else {
+            // 네트워크 오류 시 기본 이미지 표시
+            QPixmap p(":/test/test_img_2.png");
+            m_originalPixmap = p;
+            QPixmap scaledPixmap = p.scaledToHeight(300, Qt::SmoothTransformation);
+            imagePreview->setPixmap(scaledPixmap);
+        }
+    });
+}
+
+void ContinuousDetectionPopupDialog::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        isDragging = true;
+        dragPosition = event->globalPosition().toPoint() - this->pos();
+    }
+    QDialog::mousePressEvent(event);
+}
+
+void ContinuousDetectionPopupDialog::mouseMoveEvent(QMouseEvent *event)
+{
+    if ((event->buttons() & Qt::LeftButton) && isDragging) {
+        move(event->globalPosition().toPoint() - dragPosition);
+    }
+    QDialog::mouseMoveEvent(event);
+}
+
+void ContinuousDetectionPopupDialog::mouseReleaseEvent(QMouseEvent *event)
+{
+    isDragging = false;
+    QDialog::mouseReleaseEvent(event);
+}
+

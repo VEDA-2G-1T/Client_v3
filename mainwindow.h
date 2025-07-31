@@ -53,7 +53,6 @@ class QWebSocket;
 class EventSearchDialog;
 class ExitConfirmDialog;
 class BrightnessDialog;
-// class AspectRatioWidget;
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -77,6 +76,7 @@ private slots:
 
     void onCardStarToggled(EventCard* card, bool checked);
     void onBookmarkRemoveRequested(EventCard* card);
+    void onEventRemoveRequested(EventCard* card);  // [2024-12-19] 이벤트 삭제 기능 추가
 
     void toggleNotificationPanel();
     void openHelpFile();
@@ -175,6 +175,16 @@ public:
     QTimer *m_healthCheckTimer = nullptr; // 헬스체크 타이머
     QMap<QString, QTimer*> m_healthCheckTimers; // 카메라별 개별 헬스체크 타이머
 
+    // [2024-12-19] 연속 감지 카운터 및 타이머
+    QMap<QString, int> m_detectionCount;  // 카메라별 감지 횟수
+    QMap<QString, QDateTime> m_firstDetectionTime;  // 카메라별 첫 감지 시간
+    QMap<QString, QTimer*> m_detectionTimers;  // 카메라별 타이머
+
+private slots:
+    void onDetectionTimerTimeout(const QString& cameraName);  // 감지 타이머 타임아웃 처리
+    void showContinuousDetectionPopup(const QString& cameraName, const QString& imageUrl);  // 연속 감지 팝업 표시
+    void handleContinuousDetection(const QString& cameraName, const QString& imageUrl);  // 연속 감지 처리
+    void resetDetectionCounter(const QString& cameraName);  // 감지 카운터 리셋
 };
 
 
@@ -272,6 +282,95 @@ private:
 
 };
 
+// ===================================================================
+// [2024-12-19] EventCard 팝업 다이얼로그 클래스 추가
+// EventCard 클릭 시 이미지와 이미지 향상 기능을 제공하는 팝업창
+// ===================================================================
+class EventCardPopupDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    explicit EventCardPopupDialog(const QString& cameraName,
+                                 const QString& eventText,
+                                 const QDateTime& timestamp,
+                                 const QString& imageUrl,
+                                 QWidget *parent = nullptr);
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
+private slots:
+    void onSharpnessChanged(int value);
+    void onContrastChanged(int value);
+    void applyImageEnhancement();
+    QWidget* createImageEnhancementWidget();
+    QPixmap enhanceSharpness(const QPixmap &pixmap, int level);
+    QPixmap enhanceCLAHE(const QPixmap &pixmap, int level);
+
+private:
+    void setupUi();
+    void loadImage();
+
+    // UI 컴포넌트
+    QLabel *imagePreview;
+    QSlider *sharpnessSlider;
+    QSlider *contrastSlider;
+    QLabel *sharpnessLabel;
+    QLabel *contrastLabel;
+    QPixmap m_originalPixmap;
+    QNetworkAccessManager *m_networkManager;
+
+    // 데이터
+    QString m_cameraName;
+    QString m_eventText;
+    QDateTime m_timestamp;
+    QString m_imageUrl;
+
+    // 창 드래그
+    QPoint dragPosition;
+    bool isDragging;
+};
+
+// ===================================================================
+// [2024-12-19] 연속 감지 팝업 다이얼로그 클래스 추가
+// 20초 안에 4번 연속 감지 시 표시되는 팝업창
+// ===================================================================
+class ContinuousDetectionPopupDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    explicit ContinuousDetectionPopupDialog(const QString& cameraName,
+                                           const QString& imageUrl,
+                                           QWidget *parent = nullptr);
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
+private slots:
+    void loadImage();
+
+private:
+    void setupUi();
+
+    // UI 컴포넌트
+    QLabel *imagePreview;
+    QPixmap m_originalPixmap;
+    QNetworkAccessManager *m_networkManager;
+
+    // 데이터
+    QString m_cameraName;
+    QString m_imageUrl;
+
+    // 창 드래그
+    QPoint dragPosition;
+    bool isDragging;
+};
 
 class EventCard : public QFrame {
     Q_OBJECT
@@ -297,11 +396,15 @@ signals:
     void starToggled(EventCard* card, bool checked);
     void removeRequested(EventCard* card);
 
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+
 private:
     QString  m_camera;
     QString  m_event;
     QDateTime m_ts;
     QToolButton* m_actionButton;
+    QToolButton* m_removeButton;  // [2024-12-19] 북마크 삭제 버튼 추가
     QLabel* m_imageLabel;
     Mode    m_mode;
     QString m_imageUrl;
@@ -678,6 +781,24 @@ private slots: // private slots 섹션 추가
 };
 
 
+// ===================================================================
+// [2024-12-19] 이미지 향상 기능 추가 - DragDropImageLabel 클래스
+// 드래그 앤 드롭으로 이미지를 로드할 수 있는 커스텀 QLabel
+// ===================================================================
+class DragDropImageLabel : public QLabel
+{
+    Q_OBJECT
+
+public:
+    explicit DragDropImageLabel(QWidget *parent = nullptr);
+
+signals:
+    void imageDropped(const QPixmap &pixmap);
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+};
 
 class EventSearchDialog : public QDialog
 {
@@ -694,6 +815,10 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
 
+    // [2024-12-19] 드래그 앤 드롭 이벤트 핸들러 추가
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+
 private slots:
     void onSearchClicked();
     void onResetClicked();
@@ -709,6 +834,14 @@ private:
     void populateDeviceCombo();
     void populateEventTypeCombo();
     
+    // [2024-12-19] 이미지 향상 기능 관련 함수들 추가
+    void setupImageEnhancementControls();                    // 이미지 향상 컨트롤 초기화
+    void onSharpnessChanged(int value);                     // 샤프닝 슬라이더 값 변경 처리
+    void onContrastChanged(int value);                      // 대비 슬라이더 값 변경 처리
+    void applyImageEnhancement();                           // 이미지 향상 효과 적용
+    QWidget* createImageEnhancementWidget();                // 이미지 향상 UI 위젯 생성
+    QPixmap enhanceSharpness(const QPixmap &pixmap, int level);  // 샤프닝 효과 적용
+    QPixmap enhanceCLAHE(const QPixmap &pixmap, int level);      // 대비 효과 적용 (CLAHE)
 
 public:
     void resetImagePreview();
@@ -737,8 +870,17 @@ private:
     QDateTime m_currentFromDate = QDateTime::currentDateTime().addDays(-2);
     QDateTime m_currentToDate = QDateTime::currentDateTime();
 
+    // [2024-12-19] 이미지 향상 기능 관련 멤버 변수 추가
+    QSlider *sharpnessSlider = nullptr;    // 샤프닝 조절 슬라이더
+    QSlider *contrastSlider = nullptr;     // 대비 조절 슬라이더
+    QLabel *sharpnessLabel = nullptr;      // 샤프닝 값 표시 라벨
+    QLabel *contrastLabel = nullptr;       // 대비 값 표시 라벨
+    QPixmap m_originalPixmap;              // 원본 이미지 저장 (비파괴적 편집용)
+    QList<MainWindow::RawEv> m_filteredEventData;  // 필터링된 이벤트 데이터
+
+
     // 이미지 미리보기용
-    QLabel *imagePreview = nullptr;
+    DragDropImageLabel *imagePreview = nullptr;
     QNetworkAccessManager *m_networkManager = nullptr;
 
     // 창 드래그를 위한 멤버 변수

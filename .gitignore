@@ -7,3 +7,6 @@ Documents/
 # Ignore test image
 test_img.jpg
 test_img_2.png
+
+CMakeLists.txt.user
+.vscode

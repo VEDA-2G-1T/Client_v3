@@ -12,6 +12,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets WebSockets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets WebSockets)
 
+# ==================== ## OpenCV 설정 시작 ## ====================
+
+# 1. OpenCV 패키지 찾기 (PATHS 경로는 실제 OpenCV 설치 경로로 수정하세요!)
+find_package(OpenCV REQUIRED PATHS "C:/opencv/build")
+
+# 2. OpenCV 헤더 파일 경로 포함
+if(OpenCV_FOUND)
+    include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
+
+# ==================== ## OpenCV 설정 끝 ## ====================
+
 set(PROJECT_SOURCES
         main.cpp
         mainwindow.cpp
@@ -47,6 +59,7 @@ target_link_libraries(Client_v3 PRIVATE
     Qt${QT_VERSION_MAJOR}::Multimedia
     Qt${QT_VERSION_MAJOR}::MultimediaWidgets
     Qt${QT_VERSION_MAJOR}::WebSockets
+     ${OpenCV_LIBS}
     )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
