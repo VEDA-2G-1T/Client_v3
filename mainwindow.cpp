@@ -174,7 +174,7 @@ MainWindow::MainWindow(QWidget *parent)
     tbLay->addWidget(logoContainer);
 
     // [1-2] “+” Button
-    auto *addBtn = new QToolButton(tbCont);
+    addBtn = new QToolButton(tbCont);
     addBtn->setText("+");
     addBtn->setFixedSize(28,28);
     addBtn->setAutoRaise(true);
@@ -361,7 +361,7 @@ MainWindow::MainWindow(QWidget *parent)
         {":/icons/icons/search_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg", "Search"},
         {":/icons/icons/settings_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",  "Settings"},
         {":/icons/icons/refresh_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",  "Refresh"},
-        {":/icons/icons/notifications_active_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",   "What0"},
+        {":/icons/icons/sunny_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",   "밝기 조절"},
         {":/icons/icons/volume_up_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg", "Speaker"},
 
         {":/icons/icons/fullscreen_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",   "Fullscreen"},
@@ -386,7 +386,7 @@ MainWindow::MainWindow(QWidget *parent)
         int row = i / kColumnCount;
         int col = i % kColumnCount;
 
-        if (info.iconPath.contains("notifications_active")) {
+        if (info.iconPath.contains("sunny_24dp")) {
             connect(button, &QToolButton::clicked, this, &MainWindow::onBrightnessControlClicked);
         }  else if (info.iconPath.contains("speed_camera")) {
             registerCameraBtn = button;
@@ -607,6 +607,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     //디버깅 용
     // onAddView();
+
+    // 초기에 + 버튼 숨기기
+    addBtn->hide();
 }
 
 MainWindow::~MainWindow()
@@ -3084,7 +3087,7 @@ void MainWindow::onLoginSuccess()
 {
     // 스택 위젯의 페이지를 메인 컨텐츠 화면으로 전환
     m_mainStack->setCurrentIndex(1);
-
+    addBtn->show();
     // bigAddBtn->show();
 
     // 로그인 성공 후 초기 탭 생성
@@ -3695,11 +3698,12 @@ BrightnessDialog::BrightnessDialog(const QString &cameraName, int initialValue, 
     setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
     setAttribute(Qt::WA_TranslucentBackground);
     setModal(true);
-    setFixedSize(380, 240); 
+    setFixedSize(420, 280);
 
     // --- Main Background ---
     QFrame *background = new QFrame(this);
-    background->setStyleSheet("background-color: #232323; border: 1px solid #909090;");
+    background->setObjectName("backgroundFrame");
+    // background->setStyleSheet("background-color: #232323; border: 1px solid #232323;");
 
     // --- Custom Draggable Title Bar ---
     titleBar = new QFrame(background);
@@ -3708,42 +3712,41 @@ BrightnessDialog::BrightnessDialog(const QString &cameraName, int initialValue, 
 
     auto *titleLayout = new QHBoxLayout(titleBar);
     titleLayout->setContentsMargins(10, 0, 5, 0);
-    
-
-    auto *titleLabel = new QLabel("카메라 밝기 조절", titleBar);
-    titleLabel->setStyleSheet("color: #E0E0E0; font-weight: bold;");
 
     QToolButton *closeButton = new QToolButton(titleBar);
     closeButton->setText("✕");
     closeButton->setStyleSheet("color: #AAAAAA; border: none; font-size: 16px;");
     connect(closeButton, &QToolButton::clicked, this, &QDialog::reject);
 
-    titleLayout->addWidget(titleLabel);
     titleLayout->addStretch();
     titleLayout->addWidget(closeButton);
 
     // --- Content Widgets ---
     QLabel *cameraNameLabel = new QLabel(QString("<b>%1</b> 밝기 조절").arg(cameraName), background);
     cameraNameLabel->setAlignment(Qt::AlignCenter);
-    cameraNameLabel->setStyleSheet("color: #E0E0E0; font-size: 18px; border: none;");
-
-    QLabel *sliderTitleLabel = new QLabel("밝기 값 (-255~255):", background); // Text updated for new range
-    sliderTitleLabel->setStyleSheet("color: #E0E0E0; border: none;");
+    cameraNameLabel->setStyleSheet("color: #E0E0E0; font-size: 16px; border: none;");
 
     brightnessSlider = new QSlider(Qt::Horizontal, background);
-    brightnessSlider->setRange(-255, 255); // REQUIREMENT 1: Set new range
-    brightnessSlider->setValue(initialValue);  // REQUIREMENT 2: Set initial value
+    brightnessSlider->setRange(-255, 255);
+    brightnessSlider->setValue(initialValue);
+    brightnessSlider->setTickPosition(QSlider::TicksBelow); // REQUIREMENT 2: Add tick marks
+    brightnessSlider->setTickInterval(50);
 
-    valueLabel = new QLabel(QString::number(initialValue), background); // REQUIREMENT 2: Set initial label text
-    valueLabel->setMinimumWidth(35); 
+    valueLabel = new QLabel(QString::number(initialValue), background);
+    valueLabel->setMinimumWidth(35);
     valueLabel->setAlignment(Qt::AlignCenter);
     valueLabel->setStyleSheet("color: #E0E0E0; border: none;");
 
-    QHBoxLayout *sliderLayout = new QHBoxLayout();
-    sliderLayout->setContentsMargins(20, 0, 20, 0);
-    sliderLayout->addWidget(sliderTitleLabel);
-    sliderLayout->addWidget(brightnessSlider, 1);
-    sliderLayout->addWidget(valueLabel);
+    // Layout for the slider and its value label
+    QHBoxLayout *sliderRowLayout = new QHBoxLayout();
+    sliderRowLayout->addWidget(brightnessSlider, 1);
+    sliderRowLayout->addWidget(valueLabel);
+
+    // Layout to group the slider row and the title below it
+    QVBoxLayout *sliderGroupLayout = new QVBoxLayout();
+    sliderGroupLayout->setContentsMargins(20, 0, 20, 0);
+    sliderGroupLayout->addLayout(sliderRowLayout);
+    sliderGroupLayout->addSpacing(5);
 
     QPushButton *confirmButton = new QPushButton("닫기", background);
     confirmButton->setFixedSize(140, 40);
@@ -3757,7 +3760,7 @@ BrightnessDialog::BrightnessDialog(const QString &cameraName, int initialValue, 
     mainLayout->addStretch(2);
     mainLayout->addWidget(cameraNameLabel);
     mainLayout->addStretch(1);
-    mainLayout->addLayout(sliderLayout);
+    mainLayout->addLayout(sliderGroupLayout);
     mainLayout->addStretch(3);
     mainLayout->addWidget(confirmButton, 0, Qt::AlignHCenter);
 
@@ -3766,31 +3769,63 @@ BrightnessDialog::BrightnessDialog(const QString &cameraName, int initialValue, 
     dialogLayout->setContentsMargins(0, 0, 0, 0);
     dialogLayout->addWidget(background);
 
+
     // --- Styling ---
-    const QString qss = R"(
-        QSlider::groove:horizontal {
-            border: none;
-            height: 4px;
-            background: #555;
-            margin: 0;
-        }
-        QSlider::handle:horizontal {
-            background: #D0D0D0;
-            border: 1px solid #D0D0D0;
-            width: 16px;
-            height: 16px;
-            margin: -7px 0;
-            border-radius: 8px;
-        }
-        QPushButton {
-            background-color: #232323;
-            color: #ffffff;
-            border: 1px solid #909090;
-            font-size: 11px;
-        }
-        QPushButton:hover { border-color: #ffffff; }
-        QPushButton:pressed { background-color: #3c3c3c; }
-    )";
+   const QString qss = R"(
+       QFrame#backgroundFrame {
+    background-color: #232323;
+    border: 1px solid #777777;
+    }
+    QSlider {
+        background-color: transparent;
+        border: none;
+    }
+
+    QSlider::groove:horizontal {
+        border: none;
+        height: 2px;
+        background: #444444;
+        margin: 0;
+    }
+
+    /* 기존 부분을 이렇게 변경 */
+    QSlider::add-page:horizontal {
+        background: #444444;
+        border: none;
+    }
+
+    QSlider::sub-page:horizontal {
+        background: #777777; /* 활성 영역 색상 (선택 사항) */
+        border: none;
+    }
+
+    QSlider::handle:horizontal {
+        background: #CCCCCC;
+        border: none;
+        width: 8px;
+        height: 16px;
+        margin: -7px 0;
+    }
+
+    QSlider::tick:below {
+        color: #444444;
+    }
+
+    /* 나머지 스타일은 그대로 유지 */
+    QPushButton {
+        background-color: #232323;
+        color: #ffffff;
+        border: 1px solid #777777;
+        font-size: 11px;
+    }
+
+    QPushButton:hover {
+        border-color: #ffffff;
+    }
+
+    QPushButton:pressed {
+        background-color: #3c3c3c;
+    })";
     this->setStyleSheet(qss);
 
     // --- Connections ---

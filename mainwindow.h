@@ -130,6 +130,7 @@ private:
     QStackedWidget *viewStack;
     QStackedWidget *centerStack;
     QWidget    *emptyWidget;
+    QToolButton  *addBtn;
     QToolButton  *bigAddBtn;
     QTreeWidget  *layoutTree;
     QVector<QVector<QVariantMap>> layoutSlotData;

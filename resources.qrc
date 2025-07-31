@@ -25,6 +25,7 @@
         <file>icons/siren_16dp_6D6D6D_FILL0_wght400_GRAD0_opsz20.svg</file>
         <file>icons/check_16dp_E5E5E5_FILL0_wght400_GRAD0_opsz20.svg</file>
         <file>icons/speed_camera_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/sunny_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
     </qresource>
     <qresource prefix="/test">
         <file>test_img.jpg</file>
