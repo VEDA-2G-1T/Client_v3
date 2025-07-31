@@ -1,0 +1,34 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>icons/45cac18a-7e5b-44a9-8a11-faf5878934f3-removebg-preview_cut.png</file>
+        <file>icons/45cac18a-7e5b-44a9-8a11-faf5878934f3-removebg-preview_cut_2.png</file>
+        <file>icons/account_circle_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/airplay_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/app_icon.png</file>
+        <file>icons/branding_watermark_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/campaign_24dp_EA3323_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/close_small_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/featured_video_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/fullscreen_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/help_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/memory_24dp_BCAD20_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/notifications_active_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/refresh_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/search_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/settings_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/star_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/star_24dp_F4731F_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/volume_up_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+        <file>icons/bookmark_16dp_F4731F_FILL0_wght400_GRAD0_opsz20.svg</file>
+        <file>icons/siren_16dp_F4731F_FILL0_wght400_GRAD0_opsz20.svg</file>
+        <file>icons/bookmark_16dp_6D6D6D_FILL0_wght400_GRAD0_opsz20.svg</file>
+        <file>icons/siren_16dp_6D6D6D_FILL0_wght400_GRAD0_opsz20.svg</file>
+        <file>icons/check_16dp_E5E5E5_FILL0_wght400_GRAD0_opsz20.svg</file>
+        <file>icons/speed_camera_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg</file>
+    </qresource>
+    <qresource prefix="/test">
+        <file>test_img.jpg</file>
+        <file>test_img_2.png</file>
+        <file>no_camera.png</file>
+    </qresource>
+</RCC>
