@@ -133,9 +133,84 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setWindowFlags(Qt::FramelessWindowHint);
-    setStyleSheet("QMainWindow { border: 1px solid #5c5c5c; }");
     resize(1280, 720);
     QIcon app_icon(":/resources/icons/app_icon.png");
+    setWindowIcon(app_icon);
+
+    // 애플리케이션 전체에 다크모드 스타일 강제 적용
+    setStyleSheet("QMainWindow { background-color: #1e1e1e; border: 1px solid #5c5c5c; }");
+    qApp->setStyleSheet(R"(
+        * {
+            background-color: #1e1e1e !important;
+            color: #e0e0e0 !important;
+        }
+        QMainWindow, QDialog, QWidget {
+            background-color: #1e1e1e !important;
+            color: #e0e0e0 !important;
+        }
+        QLabel {
+            background-color: transparent !important;
+            color: #e0e0e0 !important;
+        }
+        QPushButton {
+            background-color: #3c3c3c !important;
+            color: #e0e0e0 !important;
+            border: 1px solid #5c5c5c !important;
+        }
+        QPushButton:hover {
+            background-color: #4c4c4c !important;
+        }
+        QLineEdit, QTextEdit, QPlainTextEdit {
+            background-color: #2b2b2b !important;
+            color: #e0e0e0 !important;
+            border: 1px solid #5c5c5c !important;
+        }
+        QComboBox {
+            background-color: #2b2b2b !important;
+            color: #e0e0e0 !important;
+            border: 1px solid #5c5c5c !important;
+        }
+        QTreeWidget, QListWidget, QTableWidget {
+            background-color: #2b2b2b !important;
+            color: #e0e0e0 !important;
+            border: 1px solid #5c5c5c !important;
+        }
+        QHeaderView::section {
+            background-color: #3c3c3c !important;
+            color: #e0e0e0 !important;
+            border: 1px solid #5c5c5c !important;
+        }
+        QTabBar::tab {
+            background-color: #3c3c3c !important;
+            color: #e0e0e0 !important;
+            border: 1px solid #5c5c5c !important;
+        }
+        QTabBar::tab:selected {
+            background-color: #4c4c4c !important;
+        }
+        QScrollBar {
+            background-color: #2b2b2b !important;
+        }
+        QScrollBar::handle {
+            background-color: #5c5c5c !important;
+        }
+        QScrollBar::handle:hover {
+            background-color: #6c6c6c !important;
+        }
+        QMenu {
+            background-color: #2b2b2b !important;
+            color: #e0e0e0 !important;
+            border: 1px solid #5c5c5c !important;
+        }
+        QMenu::item:selected {
+            background-color: #4c4c4c !important;
+        }
+        QToolTip {
+            background-color: #2b2b2b !important;
+            color: #e0e0e0 !important;
+            border: 1px solid #5c5c5c !important;
+        }
+    )");
     setWindowIcon(app_icon);
 
     // ─── [1] Top Bar ───────────────────────────────────────────────
