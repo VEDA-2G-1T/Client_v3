@@ -5081,7 +5081,7 @@ ContinuousDetectionPopupDialog::ContinuousDetectionPopupDialog(const QString& ca
     setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
     setAttribute(Qt::WA_TranslucentBackground);
     setModal(false); // 모달이 아닌 팝업으로 설정
-    setFixedSize(600, 600);
+    setFixedSize(640, 480);
     
     setupUi();
     loadImage();
@@ -5096,13 +5096,16 @@ void ContinuousDetectionPopupDialog::setupUi()
 
     // 배경 프레임
     auto *background = new QFrame(this);
-    background->setStyleSheet(R"(
-        QFrame {
+    background->setObjectName("backgroundFrame");
+     background->setStyleSheet(R"(
+        #backgroundFrame {
             background-color: #2b2b2b;
-            border: 2px solid #f4731f;
+            border: 2px solid #5c5c5c;
             border-radius: 8px;
         }
     )");
+
+    
 
     auto *contentLayout = new QVBoxLayout(background);
     contentLayout->setContentsMargins(20, 20, 20, 20);
@@ -5113,8 +5116,8 @@ void ContinuousDetectionPopupDialog::setupUi()
     auto *titleLayout = new QHBoxLayout(titleBar);
     titleLayout->setContentsMargins(0, 0, 0, 0);
 
-    auto *titleLabel = new QLabel(QString("🚨 연속 감지 알림 - %1").arg(m_cameraName), titleBar);
-    titleLabel->setStyleSheet("color: #f4731f; font-size: 16px; font-weight: bold;");
+    auto *titleLabel = new QLabel(QString("연속 감지 알림 - %1").arg(m_cameraName), titleBar);
+    titleLabel->setStyleSheet("color: #e0e0e0; font-size: 16px; font-weight: bold;");
 
     auto *closeBtn = new QToolButton(titleBar);
     closeBtn->setText("✕");
@@ -5139,13 +5142,13 @@ void ContinuousDetectionPopupDialog::setupUi()
 
     // 경고 메시지
     auto *warningFrame = new QFrame(background);
-    warningFrame->setStyleSheet("background-color: #ff4444; border-radius: 4px; padding: 10px;");
+    warningFrame->setStyleSheet("background-color: transparent; border-radius: 4px; padding: 10px; border: none;");
     auto *warningLayout = new QVBoxLayout(warningFrame);
     warningLayout->setContentsMargins(15, 15, 15, 15);
     warningLayout->setSpacing(8);
 
-    auto *warningLabel = new QLabel("⚠️ 20초 안에 4번 연속 PPE 위반 감지되었습니다!", warningFrame);
-    warningLabel->setStyleSheet("color: white; font-size: 14px; font-weight: bold;");
+    auto *warningLabel = new QLabel("20초 안에 4번 연속 PPE 위반 감지되었습니다!", warningFrame);
+    warningLabel->setStyleSheet("color: #ff6347; font-size: 14px; font-weight: bold;");
     warningLabel->setAlignment(Qt::AlignCenter);
 
     auto *timeLabel = new QLabel(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"), warningFrame);
