@@ -2905,34 +2905,32 @@ bool copyResourceDirectory(const QString &from, const QString &to)
     return true;
 }
 
-
 void MainWindow::openHelpFile()
 {
-    // 1. 프로젝트 디렉터리에 help 폴더 생성
-    QString projectDir = QCoreApplication::applicationDirPath();
-    QString helpDirPath = QDir(projectDir).filePath("Documents");
-    
-    QDir helpDir(helpDirPath);
-    if (!helpDir.exists()) {
-        if (!helpDir.mkpath(".")) {
-            CustomMessageBox msg("도움말 폴더를 생성할 수 없습니다.", this);
-            return;
-        }
+    // 1. 임시 "디렉터리" 생성
+    // QTemporaryDir는 함수가 끝나면 자신과 내용물을 자동으로 삭제합니다.
+    QTemporaryDir tempDir;
+    if (!tempDir.isValid()) {
+        CustomMessageBox msg("임시 디렉터리를 생성할 수 없습니다.", this);
+        return;
     }
+    // 크롬이 파일을 읽기 전에 디렉터리가 삭제되는 것을 방지합니다.
+    tempDir.setAutoRemove(false);
 
-    // [2024-08-01] 2. 리소스 폴더 전체를 프로젝트 디렉터리의 help 폴더로 복사 (임시 폴더에서 변경)
-    QString resourceSourcePath = ":/Documents/Documents";
+    // 2. 리소스 폴더 전체를 임시 디렉터리로 복사
+    QString resourceSourcePath = ":/resources/Documents";
+    QString tempDirPath = tempDir.path();
 
-    if (!copyResourceDirectory(resourceSourcePath, helpDirPath)) {
-        // QMessageBox::warning(this, "오류", "도움말 파일을 프로젝트 폴더로 복사하는 데 실패했습니다.");
-        CustomMessageBox msg("도움말 파일을 프로젝트 폴더로 복사하는 데 실패했습니다.", this);
+    if (!copyResourceDirectory(resourceSourcePath, tempDirPath)) {
+        // QMessageBox::warning(this, "오류", "도움말 파일을 임시 폴더로 복사하는 데 실패했습니다.");
+        CustomMessageBox msg("도움말 파일을 임시 폴더로 복사하는 데 실패했습니다.", this);
         msg.exec();
         return;
     }
 
-    // [2024-08-01] 3. 프로젝트 디렉터리의 help 폴더 안의 index.html 파일 경로 설정
-    QString helpHtmlPath = QDir(helpDirPath).filePath("index.html");
-    qDebug() << "Help files copied to:" << helpDirPath;
+    // 3. 임시 디렉터리 안의 index.html 파일 경로 설정
+    QString tempHtmlPath = QDir(tempDirPath).filePath("index.html");
+    qDebug() << "Help files copied to:" << tempDirPath;
     // 4. 크롬 경로를 찾아 QProcess로 실행
     QString chromePath;
 #if defined(Q_OS_WIN)
@@ -2948,11 +2946,11 @@ void MainWindow::openHelpFile()
 
     // 크롬이 없으면 기본 브라우저로 대신 실행
     if (!QFile::exists(chromePath)) {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(helpHtmlPath));
+        QDesktopServices::openUrl(QUrl::fromLocalFile(tempHtmlPath));
         return;
     }
 
-    QProcess::startDetached(chromePath, QStringList() << helpHtmlPath);
+    QProcess::startDetached(chromePath, QStringList() << tempHtmlPath);
 }
 
 

@@ -1,8 +1,6 @@
 # Ignore build output
 build/
 
-# Ignore documents
-Documents/
 
 # Ignore test image
 test_img.jpg
