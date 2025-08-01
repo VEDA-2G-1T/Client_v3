@@ -135,7 +135,7 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowFlags(Qt::FramelessWindowHint);
     setStyleSheet("QMainWindow { border: 1px solid #5c5c5c; }");
     resize(1280, 720);
-    QIcon app_icon(":/icons/icons/app_icon.png");
+    QIcon app_icon(":/resources/icons/app_icon.png");
     setWindowIcon(app_icon);
 
     // ─── [1] Top Bar ───────────────────────────────────────────────
@@ -164,7 +164,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 4. 실제 로고 이미지를 표시할 QLabel을 생성합니다.
     auto *logoLabel = new QLabel(logoContainer);
-    QPixmap logoPixmap(":/icons/icons/45cac18a-7e5b-44a9-8a11-faf5878934f3-removebg-preview_cut_2.png");
+    QPixmap logoPixmap(":/resources/icons/45cac18a-7e5b-44a9-8a11-faf5878934f3-removebg-preview_cut_2.png");
     logoLabel->setPixmap(logoPixmap.scaledToHeight(28, Qt::SmoothTransformation));
 
     // 5. 로고 QLabel을 컨테이너의 레이아웃에 추가합니다.
@@ -219,10 +219,10 @@ MainWindow::MainWindow(QWidget *parent)
     constexpr QSize kButtonSize(24, 24);
 
     const QVector<QString> iconPaths = {
-        ":/icons/icons/memory_24dp_BCAD20_FILL0_wght400_GRAD0_opsz24.svg",
-        ":/icons/icons/campaign_24dp_EA3323_FILL0_wght400_GRAD0_opsz24.svg",
-        ":/icons/icons/account_circle_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg",
-        ":/icons/icons/help_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
+        ":/resources/icons/memory_24dp_BCAD20_FILL0_wght400_GRAD0_opsz24.svg",
+        ":/resources/icons/campaign_24dp_EA3323_FILL0_wght400_GRAD0_opsz24.svg",
+        ":/resources/icons/account_circle_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg",
+        ":/resources/icons/help_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     };
 
     QToolButton *campaignButton = nullptr; // 임시 포인터
@@ -358,17 +358,17 @@ MainWindow::MainWindow(QWidget *parent)
     };
 
     const QVector<MiniIconInfo> iconInfos = {
-        {":/icons/icons/search_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg", "Search"},
-        {":/icons/icons/settings_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",  "Settings"},
-        {":/icons/icons/refresh_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",  "Refresh"},
-        {":/icons/icons/sunny_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",   "밝기 조절"},
-        {":/icons/icons/volume_up_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg", "Speaker"},
+        {":/resources/icons/search_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg", "Search"},
+        {":/resources/icons/settings_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",  "Settings"},
+        {":/resources/icons/refresh_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",  "Refresh"},
+        {":/resources/icons/sunny_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",   "밝기 조절"},
+        {":/resources/icons/volume_up_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg", "Speaker"},
 
-        {":/icons/icons/fullscreen_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",   "Fullscreen"},
-        {":/icons/icons/airplay_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg", "what1"},
-        {":/icons/icons/featured_video_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",   "what2"},
-        {":/icons/icons/branding_watermark_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",  "what3"},
-        {":/icons/icons/speed_camera_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg","카메라 등록"}
+        {":/resources/icons/fullscreen_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",   "Fullscreen"},
+        {":/resources/icons/airplay_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg", "what1"},
+        {":/resources/icons/featured_video_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",   "what2"},
+        {":/resources/icons/branding_watermark_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg",  "what3"},
+        {":/resources/icons/speed_camera_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg","카메라 등록"}
     };
 
     constexpr int kColumnCount = 5;
@@ -484,8 +484,8 @@ MainWindow::MainWindow(QWidget *parent)
     evL->setSpacing(0);
     auto *evTab = new QTabBar(evtP);
     evTab->setFixedHeight(40);
-    evTab->addTab(QIcon(":/icons/icons/siren_16dp_6D6D6D_FILL0_wght400_GRAD0_opsz20.svg"), "Event");
-    evTab->addTab(QIcon(":/icons/icons/bookmark_16dp_6D6D6D_FILL0_wght400_GRAD0_opsz20.svg"), "Bookmark");
+    evTab->addTab(QIcon(":/resources/icons/siren_16dp_6D6D6D_FILL0_wght400_GRAD0_opsz20.svg"), "Event");
+    evTab->addTab(QIcon(":/resources/icons/bookmark_16dp_6D6D6D_FILL0_wght400_GRAD0_opsz20.svg"), "Bookmark");
     evTab->setExpanding(true);
     evTab->setDrawBase(false);
     evTab->setStyleSheet(R"(
@@ -528,7 +528,7 @@ MainWindow::MainWindow(QWidget *parent)
     evL->addWidget(evSt, 1);
 
     // 2. Create the button.
-    auto *eventSearchButton = new QPushButton(QIcon(":/icons/icons/search_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"), " Event Search", evtP);
+    auto *eventSearchButton = new QPushButton(QIcon(":/resources/icons/search_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"), " Event Search", evtP);
     eventSearchButton->setCursor(Qt::PointingHandCursor);
     eventSearchButton->setMinimumHeight(40);
     eventSearchButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -1552,7 +1552,7 @@ void CameraSlot::setData(const QVariantMap &data)
     imageLabel->show();
 
     if (data.isEmpty() || !data.contains("type")) {
-        QPixmap raw(":/test/no_camera.png");
+        QPixmap raw(":/resources/images/no_camera.png");
         // imageLabel->setPixmap(
         //     raw.scaled(
         //         imageLabel->size(),
@@ -1569,7 +1569,7 @@ void CameraSlot::setData(const QVariantMap &data)
         infoLabel->show();
         videoWidget->hide();
         imageLabel->show();
-        imageLabel->setPixmap(QPixmap(":/test/no_camera.png"));
+        imageLabel->setPixmap(QPixmap(":/resources/images/no_camera.png"));
         return;
     }
 
@@ -1648,7 +1648,7 @@ void CameraSlot::handleMediaError()
     infoLabel->show();
     videoWidget->hide();
     imageLabel->show();
-    imageLabel->setPixmap(QPixmap(":/test/no_camera.png"));
+    imageLabel->setPixmap(QPixmap(":/resources/images/no_camera.png"));
 
     // Emit the failure signal with details
     emit validationFailed(m_slotIndex, errorMsg);
@@ -2388,12 +2388,12 @@ EventCard::EventCard(const QString& cameraName,
 
             // 별 버튼 (북마크 토글)
             m_actionButton->setCheckable(true);
-            m_actionButton->setIcon(QIcon(":/icons/icons/star_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"));
+            m_actionButton->setIcon(QIcon(":/resources/icons/star_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"));
             connect(m_actionButton, &QToolButton::toggled, this, [this](bool checked){
                 m_actionButton->setIcon(QIcon(
                     checked
-                        ? ":/icons/icons/star_24dp_F4731F_FILL0_wght400_GRAD0_opsz24.svg"
-                        : ":/icons/icons/star_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"
+                        ? ":/resources/icons/star_24dp_F4731F_FILL0_wght400_GRAD0_opsz24.svg"
+                        : ":/resources/icons/star_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"
                     ));
                 emit starToggled(this, checked);
             });
@@ -2431,7 +2431,7 @@ EventCard::EventCard(const QString& cameraName,
             // [2024-12-19] 북마크 모드에서는 별 버튼만 표시 (클릭 시 북마크 제거)
             m_actionButton->setCheckable(true);
             m_actionButton->setChecked(true);
-            m_actionButton->setIcon(QIcon(":/icons/icons/star_24dp_F4731F_FILL0_wght400_GRAD0_opsz24.svg"));
+            m_actionButton->setIcon(QIcon(":/resources/icons/star_24dp_F4731F_FILL0_wght400_GRAD0_opsz24.svg"));
             m_actionButton->setToolTip(tr("Click to remove bookmark"));
             
             // 북마크 모드에서 별 버튼 클릭 시 북마크 제거
@@ -2478,8 +2478,8 @@ void EventCard::setStarChecked(bool checked)
     m_actionButton->setChecked(checked);
     m_actionButton->setIcon(QIcon(
         checked
-            ? ":/icons/icons/star_24dp_F4731F_FILL0_wght400_GRAD0_opsz24.svg"
-            : ":/icons/icons/star_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"
+            ? ":/resources/icons/star_24dp_F4731F_FILL0_wght400_GRAD0_opsz24.svg"
+            : ":/resources/icons/star_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"
         ));
     m_actionButton->blockSignals(b);
 }
@@ -2940,7 +2940,7 @@ LoginWidget::LoginWidget(QWidget *parent) : QWidget(parent)
 
     // SAFETYNET 로고 이미지
     auto *logoLabel = new QLabel(titleContainer);
-    QPixmap logoPixmap(":/icons/icons/45cac18a-7e5b-44a9-8a11-faf5878934f3-removebg-preview_cut_2.png");
+    QPixmap logoPixmap(":/resources/icons/45cac18a-7e5b-44a9-8a11-faf5878934f3-removebg-preview_cut_2.png");
     // 로고 크기를 타이틀 텍스트와 어울리도록 조정 (높이 32px)
     logoLabel->setPixmap(logoPixmap.scaledToHeight(32, Qt::SmoothTransformation));
 
@@ -3042,7 +3042,7 @@ LoginWidget::LoginWidget(QWidget *parent) : QWidget(parent)
         background-color: transparent;
     }
     QCheckBox::indicator:checked {
-        image: url(:/icons/icons/check_16dp_E5E5E5_FILL0_wght400_GRAD0_opsz20.svg);
+        image: url(:/resources/icons/check_16dp_E5E5E5_FILL0_wght400_GRAD0_opsz20.svg);
     }
     QPushButton {
         color: #AAAAAA;
@@ -3367,7 +3367,7 @@ void EventSearchDialog::setupUi()
     imagePreview->setMinimumHeight(300);  // 이미지 크기 축소 (기존 460px → 400px)
 
     // 기본 이미지 로드
-    QPixmap p(":/test/no_camera.png");
+    QPixmap p(":/resources/images/no_camera.png");
     QPixmap scaledPixmap = p.scaledToWidth(460, Qt::SmoothTransformation);
     imagePreview->setPixmap(scaledPixmap);
 
@@ -3578,7 +3578,7 @@ void EventSearchDialog::setupUi()
                             applyImageEnhancement(); // 이미지 향상 적용
                         } else {
                             // 이미지 로드 실패 시 기본 이미지 표시
-                            QPixmap p(":/test/no_camera.png");
+                            QPixmap p(":/resources/images/no_camera.png");
                             m_originalPixmap = p; // 원본 이미지 저장
                             QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                             imagePreview->setPixmap(scaledPixmap);
@@ -3586,7 +3586,7 @@ void EventSearchDialog::setupUi()
                         }
                     } else {
                         // 네트워크 오류 시 기본 이미지 표시
-                        QPixmap p(":/test/no_camera.png");
+                        QPixmap p(":/resources/images/no_camera.png");
                         m_originalPixmap = p; // 원본 이미지 저장
                         QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                         imagePreview->setPixmap(scaledPixmap);
@@ -3595,7 +3595,7 @@ void EventSearchDialog::setupUi()
                 });
             } else {
                 // 기본 이미지 표시
-                QPixmap p(":/test/no_camera.png");
+                QPixmap p(":/resources/images/no_camera.png");
                 m_originalPixmap = p; // 원본 이미지 저장
                 QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                 imagePreview->setPixmap(scaledPixmap);
@@ -4330,7 +4330,7 @@ void EventSearchDialog::resetImagePreview()
 {
     if (imagePreview) {
         // 기본 이미지로 초기화
-        QPixmap p(":/test/no_camera.png");
+        QPixmap p(":/resources/images/no_camera.png");
         QPixmap scaledPixmap = p.scaledToWidth(460, Qt::SmoothTransformation);
         imagePreview->setPixmap(scaledPixmap);
     }
@@ -4737,7 +4737,7 @@ void EventCardPopupDialog::loadImage()
 {
     if (m_imageUrl.isEmpty()) {
         // 기본 이미지 표시
-        QPixmap p(":/test/no_camera.png");
+        QPixmap p(":/resources/images/no_camera.png");
         m_originalPixmap = p;
         QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
         imagePreview->setPixmap(scaledPixmap);
@@ -4761,7 +4761,7 @@ void EventCardPopupDialog::loadImage()
                 applyImageEnhancement();
             } else {
                 // 이미지 로드 실패 시 기본 이미지 표시
-                QPixmap p(":/test/no_camera.png");
+                QPixmap p(":/resources/images/no_camera.png");
                 m_originalPixmap = p;
                 QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
                 imagePreview->setPixmap(scaledPixmap);
@@ -4769,7 +4769,7 @@ void EventCardPopupDialog::loadImage()
             }
         } else {
             // 네트워크 오류 시 기본 이미지 표시
-            QPixmap p(":/test/no_camera.png");
+            QPixmap p(":/resources/images/no_camera.png");
             m_originalPixmap = p;
             QPixmap scaledPixmap = p.scaledToWidth(400, Qt::SmoothTransformation);
             imagePreview->setPixmap(scaledPixmap);
@@ -5193,7 +5193,7 @@ void ContinuousDetectionPopupDialog::loadImage()
 {
     if (m_imageUrl.isEmpty()) {
         // 기본 이미지 표시
-        QPixmap p(":/test/no_camera.png");
+        QPixmap p(":/resources/images/no_camera.png");
         m_originalPixmap = p;
         QPixmap scaledPixmap = p.scaledToHeight(300, Qt::SmoothTransformation);
         imagePreview->setPixmap(scaledPixmap);
@@ -5216,14 +5216,14 @@ void ContinuousDetectionPopupDialog::loadImage()
                 imagePreview->setPixmap(scaledPixmap);
             } else {
                 // 이미지 로드 실패 시 기본 이미지 표시
-                QPixmap p(":/test/no_camera.png");
+                QPixmap p(":/resources/images/no_camera.png");
                 m_originalPixmap = p;
                 QPixmap scaledPixmap = p.scaledToHeight(300, Qt::SmoothTransformation);
                 imagePreview->setPixmap(scaledPixmap);
             }
         } else {
             // 네트워크 오류 시 기본 이미지 표시
-            QPixmap p(":/test/no_camera.png");
+            QPixmap p(":/resources/images/no_camera.png");
             m_originalPixmap = p;
             QPixmap scaledPixmap = p.scaledToHeight(300, Qt::SmoothTransformation);
             imagePreview->setPixmap(scaledPixmap);
