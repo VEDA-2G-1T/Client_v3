@@ -25,6 +25,7 @@
 #include <QDrag>
 #include <QMimeData>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QScrollBar>
 #include <QPainter>
 #include <QPainterPath>
@@ -47,6 +48,7 @@
 #include <QJsonObject>
 #include <QComboBox>
 #include <QHeaderView>
+#include <QProgressBar>
 #include <QDebug>
 #include <QStandardPaths>
 #include <QNetworkAccessManager>
@@ -55,6 +57,13 @@
 #include <QJsonArray>
 #include <QTimer>
 #include <opencv2/opencv.hpp>  // [2024-12-19] 이미지 향상 기능을 위한 OpenCV 추가
+#include <algorithm>
+#include <vector>
+// using namespace std;
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 // ===================================================================
 // [2024-12-19] DragDropImageLabel 클래스 구현
@@ -139,6 +148,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 애플리케이션 전체에 다크모드 스타일 강제 적용
     setStyleSheet("QMainWindow { background-color: #1e1e1e; border: 1px solid #5c5c5c; }");
+    
+    
     qApp->setStyleSheet(R"(
         * {
             background-color: #1e1e1e !important;
@@ -300,6 +311,7 @@ MainWindow::MainWindow(QWidget *parent)
         ":/resources/icons/help_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     };
 
+    QToolButton *memoryButton = nullptr;
     QToolButton *campaignButton = nullptr; // 임시 포인터
     QToolButton *accountButton = nullptr;
     QToolButton *helpButton = nullptr;
@@ -311,9 +323,13 @@ MainWindow::MainWindow(QWidget *parent)
         btn->setIconSize(kIconSize);
         btn->setFixedSize(kButtonSize);
         btn->setAutoRaise(true);
+        btn->setStyleSheet("QToolButton { border: none; background: transparent; } QToolButton:hover { background-color: #444; }");
 
         tbLay->addWidget(btn);
 
+        if (path.contains("memory")) {
+            memoryButton = btn;
+        }
         if (path.contains("campaign")) {
             campaignButton = btn; // 버튼 찾기
         }
@@ -337,6 +353,9 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     // 버튼과 토글 슬롯 연결
+    if (memoryButton) {
+        connect(memoryButton, &QToolButton::clicked, this, &MainWindow::showSystemMonitorDialog);
+    }
     if (campaignButton) {
         connect(campaignButton, &QToolButton::clicked, this, &MainWindow::toggleNotificationPanel);
     }
@@ -463,6 +482,14 @@ MainWindow::MainWindow(QWidget *parent)
 
         if (info.iconPath.contains("sunny_24dp")) {
             connect(button, &QToolButton::clicked, this, &MainWindow::onBrightnessControlClicked);
+        } else if (info.iconPath.contains("memory_24dp")) {
+            connect(button, &QToolButton::clicked, this, &MainWindow::showSystemMonitorDialog);
+        } else if (info.iconPath.contains("sunny_24dp")) {
+            connect(button, &QToolButton::clicked, this, &MainWindow::onBrightnessControlClicked);
+        }  else if (info.iconPath.contains("fullscreen")) {
+            connect(button, &QToolButton::clicked, this, [this]() {
+                onFullscreenButtonClicked(-1); // -1은 현재 활성화된 카메라를 찾아서 사용
+            });
         }  else if (info.iconPath.contains("speed_camera")) {
             registerCameraBtn = button;
         }
@@ -789,7 +816,7 @@ void MainWindow::onAddView()
         QVariantMap cam1;
         cam1["type"] = "camera";
         cam1["name"] = "onvif";
-        cam1["ip"]   = "192.168.0.35";
+        cam1["ip"]   = "192.168.0.245";
         cam1["port"] = "554";
         cam1["url"]  = QString("rtsp://%1:%2/0/onvif/profile2/media.smp").arg(cam1["ip"].toString(), cam1["port"].toString());
         cam1["mode"] = "raw"; // 'mode' 키 추가
@@ -2878,32 +2905,34 @@ bool copyResourceDirectory(const QString &from, const QString &to)
     return true;
 }
 
+
 void MainWindow::openHelpFile()
 {
-    // 1. 임시 "디렉터리" 생성
-    // QTemporaryDir는 함수가 끝나면 자신과 내용물을 자동으로 삭제합니다.
-    QTemporaryDir tempDir;
-    if (!tempDir.isValid()) {
-        CustomMessageBox msg("임시 디렉터리를 생성할 수 없습니다.", this);
-        return;
+    // 1. 프로젝트 디렉터리에 help 폴더 생성
+    QString projectDir = QCoreApplication::applicationDirPath();
+    QString helpDirPath = QDir(projectDir).filePath("Documents");
+    
+    QDir helpDir(helpDirPath);
+    if (!helpDir.exists()) {
+        if (!helpDir.mkpath(".")) {
+            CustomMessageBox msg("도움말 폴더를 생성할 수 없습니다.", this);
+            return;
+        }
     }
-    // 크롬이 파일을 읽기 전에 디렉터리가 삭제되는 것을 방지합니다.
-    tempDir.setAutoRemove(false);
 
-    // 2. 리소스 폴더 전체를 임시 디렉터리로 복사
+    // [2024-08-01] 2. 리소스 폴더 전체를 프로젝트 디렉터리의 help 폴더로 복사 (임시 폴더에서 변경)
     QString resourceSourcePath = ":/Documents/Documents";
-    QString tempDirPath = tempDir.path();
 
-    if (!copyResourceDirectory(resourceSourcePath, tempDirPath)) {
-        // QMessageBox::warning(this, "오류", "도움말 파일을 임시 폴더로 복사하는 데 실패했습니다.");
-        CustomMessageBox msg("도움말 파일을 임시 폴더로 복사하는 데 실패했습니다.", this);
+    if (!copyResourceDirectory(resourceSourcePath, helpDirPath)) {
+        // QMessageBox::warning(this, "오류", "도움말 파일을 프로젝트 폴더로 복사하는 데 실패했습니다.");
+        CustomMessageBox msg("도움말 파일을 프로젝트 폴더로 복사하는 데 실패했습니다.", this);
         msg.exec();
         return;
     }
 
-    // 3. 임시 디렉터리 안의 index.html 파일 경로 설정
-    QString tempHtmlPath = QDir(tempDirPath).filePath("index.html");
-    qDebug() << "Help files copied to:" << tempDirPath;
+    // [2024-08-01] 3. 프로젝트 디렉터리의 help 폴더 안의 index.html 파일 경로 설정
+    QString helpHtmlPath = QDir(helpDirPath).filePath("index.html");
+    qDebug() << "Help files copied to:" << helpDirPath;
     // 4. 크롬 경로를 찾아 QProcess로 실행
     QString chromePath;
 #if defined(Q_OS_WIN)
@@ -2919,13 +2948,12 @@ void MainWindow::openHelpFile()
 
     // 크롬이 없으면 기본 브라우저로 대신 실행
     if (!QFile::exists(chromePath)) {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(tempHtmlPath));
+        QDesktopServices::openUrl(QUrl::fromLocalFile(helpHtmlPath));
         return;
     }
 
-    QProcess::startDetached(chromePath, QStringList() << tempHtmlPath);
+    QProcess::startDetached(chromePath, QStringList() << helpHtmlPath);
 }
-
 
 
 void MainWindow::mousePressEvent(QMouseEvent *event)
@@ -3142,6 +3170,13 @@ LoginWidget::LoginWidget(QWidget *parent) : QWidget(parent)
     // --- Connect Signals ---
     idLineEdit->setFocus();
     connect(loginButton, &QPushButton::clicked, this, &LoginWidget::attemptLogin);
+
+    // 엔터키로 로그인 기능 추가
+    connect(passwordLineEdit, &QLineEdit::returnPressed, this, &LoginWidget::attemptLogin);
+    connect(idLineEdit, &QLineEdit::returnPressed, [this]() {
+        passwordLineEdit->setFocus();
+    });
+
 }
 
 
@@ -5329,3 +5364,458 @@ void ContinuousDetectionPopupDialog::mouseReleaseEvent(QMouseEvent *event)
     QDialog::mouseReleaseEvent(event);
 }
 
+// [2024-08-01] 
+// ===================================================================
+// 전체화면 버튼 클릭 핸들러
+void MainWindow::onFullscreenButtonClicked(int slotIndex)
+{
+    // 현재 활성화된 카메라 슬롯 찾기
+    int currentLayoutIndex = viewTabBar->currentIndex();
+    if (currentLayoutIndex < 0 || currentLayoutIndex >= viewStack->count()) {
+        CustomMessageBox msg(tr("활성화된 레이아웃이 없습니다."), this); 
+        msg.exec();
+        return;
+    }
+
+    // 활성화된 슬롯 인덱스 확인
+    if (m_activeSlotIndex == -1) {
+        CustomMessageBox msg(tr("선택된 카메라가 없습니다. 먼저 카메라를 선택해주세요."), this); 
+        msg.exec();
+        return;
+    }
+
+    QWidget* currentPage = viewStack->widget(currentLayoutIndex);
+    if (!currentPage) {
+        CustomMessageBox msg(tr("현재 레이아웃을 찾을 수 없습니다."), this); 
+        msg.exec();
+        return;
+    }
+
+    QList<CameraSlot*> cameraSlots = currentPage->findChildren<CameraSlot*>();
+    CameraSlot* activeCameraSlot = nullptr;
+    
+    for (CameraSlot* slot : cameraSlots) {
+        if (slot->slotIndex() == m_activeSlotIndex) {
+            activeCameraSlot = slot;
+            break;
+        }
+    }
+
+    if (!activeCameraSlot) {
+        CustomMessageBox msg(tr("선택된 카메라를 찾을 수 없습니다."), this); 
+        msg.exec();
+        return;
+    }
+
+    // 카메라 데이터 가져오기
+    QVariantMap cameraData = activeCameraSlot->getCurrentData();
+    if (cameraData.isEmpty() || !cameraData.contains("url")) {
+        CustomMessageBox msg(tr("카메라 URL 정보를 찾을 수 없습니다."), this); 
+        msg.exec();
+        return;
+    }
+
+    QString cameraName = cameraData.value("name", tr("Unknown Camera")).toString();
+    QString rtspUrl = cameraData.value("url").toString();
+
+    // 전체화면 다이얼로그 생성 및 표시
+    FullscreenCameraDialog* dialog = new FullscreenCameraDialog(cameraName, rtspUrl, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+}
+
+// ===================================================================
+// FullscreenCameraDialog 구현
+FullscreenCameraDialog::FullscreenCameraDialog(const QString &cameraName, const QString &rtspUrl, QWidget *parent)
+    : QDialog(parent), m_cameraName(cameraName), m_rtspUrl(rtspUrl)
+{
+    setWindowTitle(tr("전체화면 - %1").arg(cameraName));
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog); 
+    setModal(false);
+    
+    // 전체화면으로 설정
+    resize(1280, 960); 
+    
+    setupUI();
+    startStream();
+}
+
+FullscreenCameraDialog::~FullscreenCameraDialog()
+{
+    if (m_mediaPlayer) {
+        m_mediaPlayer->stop();
+        delete m_mediaPlayer;
+    }
+}
+
+void FullscreenCameraDialog::setupUI()
+{
+    auto* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // 상단 툴바
+    m_toolbar = new QWidget(this);
+    m_toolbar->setFixedHeight(50);
+    m_toolbar->setStyleSheet("background-color: #2b2b2b;");
+    
+    auto* toolbarLayout = new QHBoxLayout(m_toolbar);
+    toolbarLayout->setContentsMargins(15, 10, 15, 10);
+    toolbarLayout->setSpacing(15);
+
+    // 카메라 이름 라벨
+    auto* titleLabel = new QLabel(m_cameraName, m_toolbar);
+    titleLabel->setStyleSheet(R"(
+        color: #e0e0e0; 
+        font-size: 16px; 
+        font-weight: bold;
+        font-family: 'Segoe UI', Arial, sans-serif; // [2024-08-01] 폰트 통일
+        background-color: transparent;
+        border: none;
+    )");
+    toolbarLayout->addWidget(titleLabel);
+
+    toolbarLayout->addStretch();
+
+    // 상태 라벨
+    m_statusLabel = new QLabel(tr("연결 중..."), m_toolbar);
+    m_statusLabel->setStyleSheet(R"(
+        color: #ffaa00; 
+        font-size: 12px;
+        font-family: 'Segoe UI', Arial, sans-serif; // [2024-08-01] 폰트 통일
+        background-color: transparent;
+        border: none;
+    )");
+    toolbarLayout->addWidget(m_statusLabel);
+
+    // 닫기 버튼
+    m_closeButton = new QToolButton(m_toolbar);
+    m_closeButton->setIcon(QIcon(":/resources/icons/close_small_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"));
+    m_closeButton->setToolTip(tr("닫기"));
+    m_closeButton->setFixedSize(32, 32);
+    m_closeButton->setStyleSheet(R"(
+        QToolButton {
+            background-color: transparent;
+            border: none;
+            color: #b7b7b7;
+            border-radius: 16px;
+        }
+        QToolButton:hover {
+            background-color: #ff4444;
+            border-radius: 16px;
+        }
+    )");
+    
+    connect(m_closeButton, &QToolButton::clicked, this, &FullscreenCameraDialog::onCloseButtonClicked);
+    toolbarLayout->addWidget(m_closeButton);
+
+    mainLayout->addWidget(m_toolbar);
+
+    // 비디오 위젯
+    m_videoWidget = new QVideoWidget(this);
+    m_videoWidget->setStyleSheet("background-color: black;");
+    mainLayout->addWidget(m_videoWidget, 1);
+
+    setLayout(mainLayout);
+}
+
+void FullscreenCameraDialog::startStream()
+{
+    m_mediaPlayer = new QMediaPlayer(this);
+    m_mediaPlayer->setVideoOutput(m_videoWidget);
+    
+    connect(m_mediaPlayer, &QMediaPlayer::playbackStateChanged, 
+            this, &FullscreenCameraDialog::onPlaybackStateChanged);
+    connect(m_mediaPlayer, &QMediaPlayer::errorOccurred, 
+            this, &FullscreenCameraDialog::onMediaError);
+
+    // RTSP 스트림 시작
+    m_mediaPlayer->setSource(QUrl(m_rtspUrl));
+    m_mediaPlayer->play();
+}
+
+void FullscreenCameraDialog::onCloseButtonClicked()
+{
+    close();
+}
+
+
+void FullscreenCameraDialog::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && m_toolbar->geometry().contains(event->pos())) {
+        m_isDragging = true;
+        m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
+        event->accept();
+    }
+}
+
+void FullscreenCameraDialog::mouseMoveEvent(QMouseEvent *event)
+{
+    if (event->buttons() & Qt::LeftButton && m_isDragging) {
+        move(event->globalPosition().toPoint() - m_dragPosition);
+        event->accept();
+    }
+}
+
+void FullscreenCameraDialog::mouseReleaseEvent(QMouseEvent *event)
+{
+    Q_UNUSED(event);
+    m_isDragging = false;
+}
+
+
+
+void FullscreenCameraDialog::onPlaybackStateChanged(QMediaPlayer::PlaybackState state)
+{
+    switch (state) {
+        case QMediaPlayer::PlayingState:
+            m_statusLabel->setText(tr("재생 중"));
+            m_statusLabel->setStyleSheet(R"(
+                color: #00ff00; 
+                font-size: 12px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                background-color: transparent;
+                border: none;
+            )");
+            break;
+        case QMediaPlayer::PausedState:
+            m_statusLabel->setText(tr("일시정지"));
+            m_statusLabel->setStyleSheet(R"(
+                color: #ffaa00; 
+                font-size: 12px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                background-color: transparent;
+                border: none;
+            )");
+            break;
+        case QMediaPlayer::StoppedState:
+            m_statusLabel->setText(tr("정지됨"));
+            m_statusLabel->setStyleSheet(R"(
+                color: #ff4444; 
+                font-size: 12px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                background-color: transparent;
+                border: none;
+            )");
+            break;
+    }
+}
+
+void FullscreenCameraDialog::onMediaError(QMediaPlayer::Error error, const QString &errorString)
+{
+    qDebug() << "Media error:" << error << errorString;
+    m_statusLabel->setText(tr("연결 실패"));
+    m_statusLabel->setStyleSheet(R"(
+        color: #ff4444; 
+        font-size: 12px;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background-color: transparent;
+        border: none;
+    )");
+}
+
+// ===================================================================
+// SystemMonitorDialog 구현
+void MainWindow::showSystemMonitorDialog()
+{
+    SystemMonitorDialog* dialog = new SystemMonitorDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    
+    // 오른쪽 상단에 위치시키기
+    QPoint globalPos = mapToGlobal(QPoint(0, 0));
+    int x = globalPos.x() + width() - 220;  // 오른쪽에서 220px 왼쪽
+    int y = globalPos.y() + 10;  // 상단에서 10px 아래
+    dialog->move(x, y);
+    
+    dialog->show();
+}
+
+SystemMonitorDialog::SystemMonitorDialog(QWidget *parent)
+    : QDialog(parent)
+{
+    setWindowTitle(tr("메모리 사용량"));
+    setWindowFlags(Qt::Dialog | Qt::WindowCloseButtonHint);
+    setModal(false);
+    resize(200, 60);
+    
+    setupUI();
+    
+    // 타이머 설정 (1초마다 업데이트)
+    m_updateTimer = new QTimer(this);
+    connect(m_updateTimer, &QTimer::timeout, this, &SystemMonitorDialog::updateSystemInfo);
+    m_updateTimer->start(1000);
+    
+    // 초기 업데이트
+    updateSystemInfo();
+}
+
+SystemMonitorDialog::~SystemMonitorDialog()
+{
+    if (m_updateTimer) {
+        m_updateTimer->stop();
+    }
+}
+
+void SystemMonitorDialog::setupUI()
+{
+    auto* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(10, 5, 10, 10);
+    mainLayout->setSpacing(8);
+
+    // CPU 사용량 (한 줄로 표시)
+    auto* cpuRow = new QWidget(this);
+    auto* cpuLayout = new QHBoxLayout(cpuRow);
+    cpuLayout->setContentsMargins(0, 0, 0, 0);
+    cpuLayout->setSpacing(8);
+
+    auto* cpuLabel = new QLabel("CPU", cpuRow);
+    cpuLabel->setFixedWidth(25);
+    cpuLabel->setStyleSheet("color: #ccc; font-size: 11px;");
+    cpuLayout->addWidget(cpuLabel);
+
+    m_cpuBar = new QProgressBar(cpuRow);
+    m_cpuBar->setFixedHeight(12);
+    m_cpuBar->setRange(0, 100);
+    m_cpuBar->setTextVisible(false);
+    m_cpuBar->setStyleSheet(R"(
+        QProgressBar {
+            border: 1px solid #555;
+            border-radius: 0px;
+            background-color: #333;
+        }
+        QProgressBar::chunk {
+            background: #8dc63f;
+            border-radius: 0px;
+        }
+    )");
+    cpuLayout->addWidget(m_cpuBar);
+
+    m_cpuLabel = new QLabel("0%", cpuRow);
+    m_cpuLabel->setFixedWidth(35);
+    m_cpuLabel->setStyleSheet("color: #ccc; font-size: 10px;");
+    m_cpuLabel->setAlignment(Qt::AlignRight);
+    cpuLayout->addWidget(m_cpuLabel);
+
+    mainLayout->addWidget(cpuRow);
+
+    // RAM 사용량 (한 줄로 표시)
+    auto* ramRow = new QWidget(this);
+    auto* ramLayout = new QHBoxLayout(ramRow);
+    ramLayout->setContentsMargins(0, 0, 0, 0);
+    ramLayout->setSpacing(8);
+
+    auto* ramLabel = new QLabel("RAM", ramRow);
+    ramLabel->setFixedWidth(25);
+    ramLabel->setStyleSheet("color: #ccc; font-size: 11px;");
+    ramLayout->addWidget(ramLabel);
+
+    m_memoryBar = new QProgressBar(ramRow);
+    m_memoryBar->setFixedHeight(12);
+    m_memoryBar->setRange(0, 100);
+    m_memoryBar->setTextVisible(false);
+    m_memoryBar->setStyleSheet(R"(
+        QProgressBar {
+            border: 1px solid #555;
+            border-radius: 0px;
+            background-color: #333;
+        }
+        QProgressBar::chunk {
+            background: #d8793d;
+            border-radius: 0px;
+        }
+    )");
+    ramLayout->addWidget(m_memoryBar);
+
+    m_memoryLabel = new QLabel("0%", ramRow);
+    m_memoryLabel->setFixedWidth(35);
+    m_memoryLabel->setStyleSheet("color: #ccc; font-size: 10px;");
+    m_memoryLabel->setAlignment(Qt::AlignRight);
+    ramLayout->addWidget(m_memoryLabel);
+
+    mainLayout->addWidget(ramRow);
+}
+
+void SystemMonitorDialog::updateSystemInfo()
+{
+    double cpuUsage, memoryUsage;
+    getSystemInfo(cpuUsage, memoryUsage);
+
+    // CPU 정보 업데이트
+    m_cpuLabel->setText(QString("%1%").arg(cpuUsage, 0, 'f', 1));
+    m_cpuBar->setValue(static_cast<int>(cpuUsage));
+
+    // 메모리 정보 업데이트
+    m_memoryLabel->setText(QString("%1%").arg(memoryUsage, 0, 'f', 1));
+    m_memoryBar->setValue(static_cast<int>(memoryUsage));
+}
+
+void SystemMonitorDialog::getSystemInfo(double& cpuUsage, double& memoryUsage)
+{
+    // Windows에서 시스템 정보 가져오기
+    #ifdef Q_OS_WIN
+    // CPU 사용량 (간단한 구현)
+    static qint64 lastCpuTime = 0;
+    static qint64 lastIdleTime = 0;
+    
+    FILETIME idleTime, kernelTime, userTime;
+    if (GetSystemTimes(&idleTime, &kernelTime, &userTime)) {
+        qint64 currentCpuTime = (kernelTime.dwHighDateTime << 32) + kernelTime.dwLowDateTime +
+                               (userTime.dwHighDateTime << 32) + userTime.dwLowDateTime;
+        qint64 currentIdleTime = (idleTime.dwHighDateTime << 32) + idleTime.dwLowDateTime;
+        
+        if (lastCpuTime > 0) {
+            qint64 cpuDelta = currentCpuTime - lastCpuTime;
+            qint64 idleDelta = currentIdleTime - lastIdleTime;
+            cpuUsage = 100.0 * (1.0 - (double)idleDelta / cpuDelta);
+        } else {
+            cpuUsage = 0.0;
+        }
+        
+        lastCpuTime = currentCpuTime;
+        lastIdleTime = currentIdleTime;
+    } else {
+        cpuUsage = 0.0;
+    }
+    
+    // 메모리 사용량
+    MEMORYSTATUSEX memInfo;
+    memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+    if (GlobalMemoryStatusEx(&memInfo)) {
+        memoryUsage = 100.0 * (1.0 - (double)memInfo.ullAvailPhys / memInfo.ullTotalPhys);
+    } else {
+        memoryUsage = 0.0;
+    }
+    #else
+    // Linux/Mac용 구현 (간단한 더미 값)
+    cpuUsage = 25.0 + (rand() % 50); // 25-75% 랜덤
+    memoryUsage = 30.0 + (rand() % 40); // 30-70% 랜덤
+    #endif
+}
+
+void SystemMonitorDialog::onCloseButtonClicked()
+{
+    close();
+}
+
+void SystemMonitorDialog::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && m_titleBar->geometry().contains(event->pos())) {
+        m_isDragging = true;
+        m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
+        event->accept();
+    }
+}
+
+void SystemMonitorDialog::mouseMoveEvent(QMouseEvent *event)
+{
+    if (event->buttons() & Qt::LeftButton && m_isDragging) {
+        move(event->globalPosition().toPoint() - m_dragPosition);
+        event->accept();
+    }
+}
+
+void SystemMonitorDialog::mouseReleaseEvent(QMouseEvent *event)
+{
+    Q_UNUSED(event);
+    m_isDragging = false;
+}

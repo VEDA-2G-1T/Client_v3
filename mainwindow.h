@@ -39,7 +39,9 @@
 #include <QTableWidget>
 #include <QPainter>
 #include <QComboBox>
+#include <QProgressBar>
 #include <QNetworkAccessManager>
+
 
 class QTreeWidgetItem;
 class EventCard;
@@ -53,6 +55,10 @@ class QWebSocket;
 class EventSearchDialog;
 class ExitConfirmDialog;
 class BrightnessDialog;
+class FullscreenCameraDialog;
+class SystemMonitorDialog;
+
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -66,6 +72,8 @@ private slots:
     void onSwitchView(int idx);
     void onCloseView(int idx);
 
+    // 테마 관련 함수들
+    // bool isDarkMode() const;
     void onLayoutTreeClicked(QTreeWidgetItem *item, int column);
     void onCameraSlotClicked(int slotIndex);
     void onSlotDropped(int srcIndex, int dstIndex);
@@ -82,6 +90,8 @@ private slots:
     void openHelpFile();
     void toggleLoginPopup();
 
+    void onFullscreenButtonClicked(int slotIndex);
+
 
     void handleLogout();
     void onLoginSuccess();
@@ -92,6 +102,7 @@ private slots:
     void onWebSocketMessageReceived(const QString &message);
 
     void showEventSearchDialog();
+    void showSystemMonitorDialog();
 
     void onCloseButtonClicked();
 
@@ -226,6 +237,38 @@ private:
     qreal m_ratio;
 };
 
+class FullscreenCameraDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    explicit FullscreenCameraDialog(const QString &cameraName, const QString &rtspUrl, QWidget *parent = nullptr);
+    ~FullscreenCameraDialog();
+
+private slots:
+    void onCloseButtonClicked();
+    void onPlaybackStateChanged(QMediaPlayer::PlaybackState state);
+    void onMediaError(QMediaPlayer::Error error, const QString &errorString);
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
+private:
+    void setupUI();
+    void startStream();
+
+    QString m_cameraName;
+    QString m_rtspUrl;
+    QMediaPlayer *m_mediaPlayer;
+    QVideoWidget *m_videoWidget;
+    QToolButton *m_closeButton;
+    QLabel *m_statusLabel;
+    QWidget *m_toolbar;
+    bool m_isDragging = false;
+    QPoint m_dragPosition;
+};
 
 class CameraSlot : public AspectRatioWidget {
     Q_OBJECT
@@ -238,7 +281,8 @@ public:
     void stopStream();
 
     int slotIndex() const { return m_slotIndex; }
-
+    QMediaPlayer* getMediaPlayer() const { return mediaPlayer; }
+    QVariantMap getCurrentData() const { return m_currentData; }
 
 signals:
     void clicked(int slotIndex);
@@ -418,7 +462,7 @@ public:
         m_padding(12),
         m_radius(0),
         m_fixedTabWidth(120),
-        m_closeIcon(QStringLiteral(":/icons/icons/close_small_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"))
+        m_closeIcon(QStringLiteral(":/resources/icons/close_small_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"))
     {
         setExpanding(false);
         setMovable(true);
@@ -1027,6 +1071,39 @@ private:
 
     // For custom window dragging
     QFrame* titleBar;
+    QPoint m_dragPosition;
+    bool m_isDragging = false;
+};
+
+// ===================================================================
+// SystemMonitorDialog 클래스
+class SystemMonitorDialog : public QDialog
+{
+    Q_OBJECT
+
+public:
+    explicit SystemMonitorDialog(QWidget *parent = nullptr);
+    ~SystemMonitorDialog();
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
+private slots:
+    void updateSystemInfo();
+    void onCloseButtonClicked();
+
+private:
+    void setupUI();
+    void getSystemInfo(double& cpuUsage, double& memoryUsage);
+
+    QLabel *m_cpuLabel;
+    QLabel *m_memoryLabel;
+    QProgressBar *m_cpuBar;
+    QProgressBar *m_memoryBar;
+    QTimer *m_updateTimer;
+    QFrame* m_titleBar;
     QPoint m_dragPosition;
     bool m_isDragging = false;
 };
