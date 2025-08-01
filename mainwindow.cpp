@@ -4636,9 +4636,10 @@ void EventCardPopupDialog::setupUi()
 
     // 배경 프레임
     auto *background = new QFrame(this);
+    background->setObjectName("backgroundFrame");
     background->setStyleSheet(R"(
-        QFrame {
-            background-color: #2b2b2b;
+        #backgroundFrame {
+            background-color: #2b2b2b; /* 2. 통일된 배경색 */
             border: 1px solid #5c5c5c;
             border-radius: 8px;
         }
@@ -4679,7 +4680,7 @@ void EventCardPopupDialog::setupUi()
 
     // 이벤트 정보
     auto *infoFrame = new QFrame(background);
-    infoFrame->setStyleSheet("background-color: #3c3c3c; border-radius: 4px; padding: 10px;");
+    infoFrame->setStyleSheet("background-color: transparent; padding: 10px;");
     auto *infoLayout = new QVBoxLayout(infoFrame);
     infoLayout->setContentsMargins(15, 15, 15, 15);
     infoLayout->setSpacing(8);
@@ -4690,6 +4691,9 @@ void EventCardPopupDialog::setupUi()
 
     auto *timeLabel = new QLabel(m_timestamp.toString("yyyy-MM-dd hh:mm:ss"), infoFrame);
     timeLabel->setStyleSheet("color: #b0b0b0; font-size: 12px;");
+
+    eventLabel->setAlignment(Qt::AlignHCenter);  
+    timeLabel->setAlignment(Qt::AlignHCenter);   
 
     infoLayout->addWidget(eventLabel);
     infoLayout->addWidget(timeLabel);
@@ -4703,9 +4707,24 @@ void EventCardPopupDialog::setupUi()
     // 이미지 향상 컨트롤
     auto *enhancementWidget = createImageEnhancementWidget();
 
+    auto* separator1 = new QFrame(background);
+    separator1->setFrameShape(QFrame::HLine);
+    separator1->setStyleSheet("background-color: #444; border: none;");
+    separator1->setFixedHeight(1);
+    contentLayout->addWidget(separator1);
+
+    auto* separator2 = new QFrame(background);
+    separator2->setFrameShape(QFrame::HLine);
+    separator2->setStyleSheet("background-color: #444; border: none;");
+    separator2->setFixedHeight(1);
+    contentLayout->addWidget(separator2);
+
     contentLayout->addWidget(titleBar);
     contentLayout->addWidget(infoFrame);
+    contentLayout->addWidget(separator1);
     contentLayout->addWidget(imagePreview, 1);
+    contentLayout->addWidget(separator2);
+
     contentLayout->addWidget(enhancementWidget);
 
     mainLayout->addWidget(background);
@@ -4823,10 +4842,33 @@ QWidget* EventCardPopupDialog::createImageEnhancementWidget()
     layout->setSpacing(15);
     
     // 제목
-    auto *titleLabel = new QLabel("이미지 향상", widget);
+    auto *titleLabel = new QLabel("Iamge Editing ", widget);
     titleLabel->setStyleSheet("font-weight: bold; color: #e0e0e0; font-size: 14px;");
+    titleLabel->setAlignment(Qt::AlignHCenter);  
     layout->addWidget(titleLabel);
-    
+
+    const QString sliderStyle = R"(
+        QSlider::groove:horizontal {
+            border: none;
+            height: 4px;
+            background: #555555; /* 4. 배경색보다 밝게 수정 */
+            margin: 0px;
+            border-radius: 2px;
+        }
+        QSlider::handle:horizontal {
+            background: #F4731F;
+            border: none;
+            width: 10px; /* 3. 세로가 더 길게 설정 */
+            height: 20px;
+            margin: -8px 0; /* 핸들을 그루브 중앙에 맞추기 위한 마진 조정 */
+            border-radius: 2px;
+        }
+        QSlider::sub-page:horizontal {
+            background: #F4731F;
+            border-radius: 2px;
+        }
+    )";
+
     // 샤프닝 컨트롤
     auto *sharpnessGroup = new QWidget(widget);
     auto *sharpnessLayout = new QHBoxLayout(sharpnessGroup);
@@ -4838,25 +4880,7 @@ QWidget* EventCardPopupDialog::createImageEnhancementWidget()
     sharpnessSlider = new QSlider(Qt::Horizontal, widget);
     sharpnessSlider->setRange(-100, 100);
     sharpnessSlider->setValue(0);
-    sharpnessSlider->setStyleSheet(R"(
-        QSlider::groove:horizontal {
-            border: 1px solid #555;
-            height: 8px;
-            background: #2b2b2b;
-            border-radius: 4px;
-        }
-        QSlider::handle:horizontal {
-            background: #F4731F;
-            border: 1px solid #F4731F;
-            width: 18px;
-            margin: -2px 0;
-            border-radius: 9px;
-        }
-        QSlider::sub-page:horizontal {
-            background: #F4731F;
-            border-radius: 4px;
-        }
-    )");
+    sharpnessSlider->setStyleSheet(sliderStyle);
     
     connect(sharpnessSlider, &QSlider::valueChanged, this, &EventCardPopupDialog::onSharpnessChanged);
     
@@ -4875,26 +4899,7 @@ QWidget* EventCardPopupDialog::createImageEnhancementWidget()
     contrastSlider = new QSlider(Qt::Horizontal, widget);
     contrastSlider->setRange(-100, 100);
     contrastSlider->setValue(0);
-    contrastSlider->setStyleSheet(R"(
-        QSlider::groove:horizontal {
-            border: 1px solid #555;
-            height: 8px;
-            background: #2b2b2b;
-            border-radius: 4px;
-        }
-        QSlider::handle:horizontal {
-            background: #F4731F;
-            border: 1px solid #F4731F;
-            width: 18px;
-            margin: -2px 0;
-            border-radius: 9px;
-        }
-        QSlider::sub-page:horizontal {
-            background: #F4731F;
-            border-radius: 4px;
-        }
-    )");
-    
+    contrastSlider->setStyleSheet(sliderStyle);
     connect(contrastSlider, &QSlider::valueChanged, this, &EventCardPopupDialog::onContrastChanged);
     
     contrastLayout->addWidget(contrastLabel);
