@@ -5686,110 +5686,33 @@ void FullscreenCameraDialog::onMediaError(QMediaPlayer::Error error, const QStri
 // SystemMonitorDialog 구현
 void MainWindow::showSystemMonitorDialog()
 {
-    // 이미 열려있으면 포커스만 주고 타이머 재시작
-    if (m_systemMonitorDialog && m_systemMonitorDialog->isVisible()) {
-        m_systemMonitorDialog->raise();
-        m_systemMonitorDialog->activateWindow();
-        // 타이머 재시작하여 실시간 업데이트 보장
-        m_systemMonitorDialog->restartUpdateTimer();
-        return;
-    }
-
-    // 기존 다이얼로그가 있으면 삭제
-    if (m_systemMonitorDialog) {
-        m_systemMonitorDialog->deleteLater();
-    }
-
-    m_systemMonitorDialog = new SystemMonitorDialog(QString(), this);
-    m_systemMonitorDialog->setAttribute(Qt::WA_DeleteOnClose);
-
-    // 다이얼로그가 닫힐 때 포인터를 nullptr로 설정
-    connect(m_systemMonitorDialog, &QDialog::destroyed, this, [this]() {
-        m_systemMonitorDialog = nullptr;
-    });
-
-    // 등록된 모든 카메라 정보 추가
-    for (auto it = m_registeredCameras.begin(); it != m_registeredCameras.end(); ++it) {
-        QString ip = it.key();
-        QString cameraName = it.value();
-        m_systemMonitorDialog->addCameraInfo(cameraName, ip);
-    }
-
+    SystemMonitorDialog* dialog = new SystemMonitorDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    
     // 오른쪽 상단에 위치시키기
     QPoint globalPos = mapToGlobal(QPoint(0, 0));
     int x = globalPos.x() + width() - 220;  // 오른쪽에서 220px 왼쪽
     int y = globalPos.y() + 10;  // 상단에서 10px 아래
-    m_systemMonitorDialog->move(x, y);
-
-    m_systemMonitorDialog->show();
+    dialog->move(x, y);
+    
+    dialog->show();
 }
 
-// 카메라 등록 시 자동으로 시스템 모니터를 생성하는 기능은 제거됨
-// 대신 메모리 확인 버튼을 눌렀을 때 등록된 모든 카메라 정보를 표시
-void MainWindow::createCameraSystemMonitor(const QString &cameraName, const QString &cameraIp)
+SystemMonitorDialog::SystemMonitorDialog(QWidget *parent)
+    : QDialog(parent)
 {
-    // 이 메서드는 더 이상 사용되지 않음
-    // 카메라 정보는 m_registeredCameras에 저장되고
-    // showSystemMonitorDialog()에서 모든 등록된 카메라를 표시함
-    Q_UNUSED(cameraName);
-    Q_UNUSED(cameraIp);
-}
-
-void MainWindow::removeCameraSystemMonitor(const QString &cameraIp)
-{
-    qDebug() << "[SystemMonitor] Removing camera from monitor for IP:" << cameraIp;
-
-    if (m_systemMonitorDialog) {
-        m_systemMonitorDialog->removeCameraInfo(cameraIp);
-
-        // 카메라가 없으면 다이얼로그 닫기
-        if (m_systemMonitorDialog->m_cameraInfos.isEmpty()) {
-            m_systemMonitorDialog->close();
-            qDebug() << "[SystemMonitor] No cameras left, closing monitor dialog";
-        }
-    } else {
-        qDebug() << "[SystemMonitor] Monitor dialog not found";
-    }
-}
-
-
-
-SystemMonitorDialog::SystemMonitorDialog(const QString &cameraName, QWidget *parent)
-    : QDialog(parent),
-    m_cameraName(cameraName.isNull() ? QString() : cameraName),
-    m_cpuLabel(nullptr),
-    m_memoryLabel(nullptr),
-    m_cpuBar(nullptr),
-    m_memoryBar(nullptr),
-    m_updateTimer(nullptr),
-    m_titleBar(nullptr),
-    m_isDragging(false),
-    m_webSocketCpuUsage(-1.0),
-    m_webSocketMemoryUsage(-1.0),
-    m_hasWebSocketData(false),
-    m_webSocketTimeoutTimer(nullptr),
-    m_mainLayout(nullptr)
-{
-    QString title = cameraName.isEmpty() ? tr("시스템 모니터") : QString(tr("시스템 모니터 - %1")).arg(cameraName);
-    setWindowTitle(title);
+    setWindowTitle(tr("메모리 사용량"));
     setWindowFlags(Qt::Dialog | Qt::WindowCloseButtonHint);
     setModal(false);
-    resize(200, 80);
-
+    resize(200, 60);
+    
     setupUI();
-
+    
     // 타이머 설정 (1초마다 업데이트)
     m_updateTimer = new QTimer(this);
     connect(m_updateTimer, &QTimer::timeout, this, &SystemMonitorDialog::updateSystemInfo);
     m_updateTimer->start(1000);
-
-    // 웹소켓 데이터 타임아웃 타이머 (5초 후 로컬 데이터로 복귀)
-    m_webSocketTimeoutTimer = new QTimer(this);
-    m_webSocketTimeoutTimer->setSingleShot(true);
-    connect(m_webSocketTimeoutTimer, &QTimer::timeout, this, [this]() {
-        m_hasWebSocketData = false;
-        updateSystemInfo();
-    });
+    
     // 초기 업데이트
     updateSystemInfo();
 }
@@ -5799,103 +5722,30 @@ SystemMonitorDialog::~SystemMonitorDialog()
     if (m_updateTimer) {
         m_updateTimer->stop();
     }
-    if (m_webSocketTimeoutTimer) {
-        m_webSocketTimeoutTimer->stop();
-    }
 }
+
 void SystemMonitorDialog::setupUI()
 {
-    m_mainLayout = new QVBoxLayout(this);
-    m_mainLayout->setContentsMargins(8, 3, 8, 8); // 여백 줄임
-    m_mainLayout->setSpacing(2); // 간격 줄임
+    auto* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(10, 5, 10, 10);
+    mainLayout->setSpacing(8);
 
-    // 제목 표시
-    auto* titleLabel = new QLabel(tr("시스템 모니터"), this);
-    titleLabel->setStyleSheet("color: #8dc63f; font-size: 12px; font-weight: bold;"); // 폰트 크기 줄임
-    titleLabel->setAlignment(Qt::AlignCenter);
-    m_mainLayout->addWidget(titleLabel);
-
-    // 윈도우 시스템 정보 (Client) - 항상 표시
-    addCameraInfo("Client", "");
-
-    updateDialogSize();
-}
-
-void SystemMonitorDialog::updateSystemInfo()
-{
-    double cpuUsage, memoryUsage;
-    getSystemInfo(cpuUsage, memoryUsage);
-
-    // Client 시스템 정보 업데이트
-    if (m_cameraInfos.contains("")) {
-        CameraSystemInfo &info = m_cameraInfos[""];
-        info.cpuUsage = cpuUsage;
-        info.memoryUsage = memoryUsage;
-        info.hasWebSocketData = false; // 로컬 데이터
-
-        // UI 업데이트
-        if (info.cpuLabel) {
-            info.cpuLabel->setText(QString("%1%").arg(cpuUsage, 0, 'f', 1));
-        }
-        if (info.cpuBar) {
-            info.cpuBar->setValue(static_cast<int>(cpuUsage));
-        }
-        if (info.memoryLabel) {
-            info.memoryLabel->setText(QString("%1%").arg(memoryUsage, 0, 'f', 1));
-        }
-        if (info.memoryBar) {
-            info.memoryBar->setValue(static_cast<int>(memoryUsage));
-        }
-    }
-}
-
-void SystemMonitorDialog::setCameraName(const QString &cameraName)
-{
-    m_cameraName = cameraName;
-    QString title = cameraName.isEmpty() ? tr("시스템 모니터") : QString(tr("시스템 모니터 - %1")).arg(cameraName);
-    setWindowTitle(title);
-}
-
-void SystemMonitorDialog::addCameraInfo(const QString &cameraName, const QString &cameraIp)
-{
-    qDebug() << "[SystemMonitor] Adding camera info:" << cameraName << "IP:" << cameraIp;
-
-    // 이미 존재하는지 확인
-    if (m_cameraInfos.contains(cameraIp)) {
-        qDebug() << "[SystemMonitor] Camera info already exists for IP:" << cameraIp;
-        return;
-    }
-
-    // 카메라 정보 컨테이너 생성
-    CameraSystemInfo info;
-    info.name = cameraName;
-    info.container = new QWidget(this);
-    auto* containerLayout = new QVBoxLayout(info.container);
-    containerLayout->setContentsMargins(0, 2, 0, 2); // 여백 줄임
-    containerLayout->setSpacing(2); // 간격 줄임
-
-    // 카메라 이름 라벨
-    info.nameLabel = new QLabel(cameraName, info.container);
-    info.nameLabel->setStyleSheet("color: #8dc63f; font-size: 10px; font-weight: bold;"); // 폰트 크기 줄임
-    info.nameLabel->setAlignment(Qt::AlignCenter);
-    containerLayout->addWidget(info.nameLabel);
-
-    // CPU 사용량 행
-    auto* cpuRow = new QWidget(info.container);
+    // CPU 사용량 (한 줄로 표시)
+    auto* cpuRow = new QWidget(this);
     auto* cpuLayout = new QHBoxLayout(cpuRow);
     cpuLayout->setContentsMargins(0, 0, 0, 0);
-    cpuLayout->setSpacing(4); // 간격 줄임
+    cpuLayout->setSpacing(8);
 
     auto* cpuLabel = new QLabel("CPU", cpuRow);
     cpuLabel->setFixedWidth(25);
     cpuLabel->setStyleSheet("color: #ccc; font-size: 11px;");
     cpuLayout->addWidget(cpuLabel);
 
-    info.cpuBar = new QProgressBar(cpuRow);
-    info.cpuBar->setFixedHeight(12);
-    info.cpuBar->setRange(0, 100);
-    info.cpuBar->setTextVisible(false);
-    info.cpuBar->setStyleSheet(R"(
+    m_cpuBar = new QProgressBar(cpuRow);
+    m_cpuBar->setFixedHeight(12);
+    m_cpuBar->setRange(0, 100);
+    m_cpuBar->setTextVisible(false);
+    m_cpuBar->setStyleSheet(R"(
         QProgressBar {
             border: 1px solid #555;
             border-radius: 0px;
@@ -5906,32 +5756,32 @@ void SystemMonitorDialog::addCameraInfo(const QString &cameraName, const QString
             border-radius: 0px;
         }
     )");
-    cpuLayout->addWidget(info.cpuBar);
+    cpuLayout->addWidget(m_cpuBar);
 
-    info.cpuLabel = new QLabel("0%", cpuRow);
-    info.cpuLabel->setFixedWidth(35);
-    info.cpuLabel->setStyleSheet("color: #ccc; font-size: 10px;");
-    info.cpuLabel->setAlignment(Qt::AlignRight);
-    cpuLayout->addWidget(info.cpuLabel);
+    m_cpuLabel = new QLabel("0%", cpuRow);
+    m_cpuLabel->setFixedWidth(35);
+    m_cpuLabel->setStyleSheet("color: #ccc; font-size: 10px;");
+    m_cpuLabel->setAlignment(Qt::AlignRight);
+    cpuLayout->addWidget(m_cpuLabel);
 
-    containerLayout->addWidget(cpuRow);
+    mainLayout->addWidget(cpuRow);
 
-    // RAM 사용량 행
-    auto* ramRow = new QWidget(info.container);
+    // RAM 사용량 (한 줄로 표시)
+    auto* ramRow = new QWidget(this);
     auto* ramLayout = new QHBoxLayout(ramRow);
     ramLayout->setContentsMargins(0, 0, 0, 0);
-    ramLayout->setSpacing(4); // 간격 줄임
+    ramLayout->setSpacing(8);
 
     auto* ramLabel = new QLabel("RAM", ramRow);
     ramLabel->setFixedWidth(25);
     ramLabel->setStyleSheet("color: #ccc; font-size: 11px;");
     ramLayout->addWidget(ramLabel);
 
-    info.memoryBar = new QProgressBar(ramRow);
-    info.memoryBar->setFixedHeight(12);
-    info.memoryBar->setRange(0, 100);
-    info.memoryBar->setTextVisible(false);
-    info.memoryBar->setStyleSheet(R"(
+    m_memoryBar = new QProgressBar(ramRow);
+    m_memoryBar->setFixedHeight(12);
+    m_memoryBar->setRange(0, 100);
+    m_memoryBar->setTextVisible(false);
+    m_memoryBar->setStyleSheet(R"(
         QProgressBar {
             border: 1px solid #555;
             border-radius: 0px;
@@ -5942,126 +5792,45 @@ void SystemMonitorDialog::addCameraInfo(const QString &cameraName, const QString
             border-radius: 0px;
         }
     )");
-    ramLayout->addWidget(info.memoryBar);
+    ramLayout->addWidget(m_memoryBar);
 
-    info.memoryLabel = new QLabel("0%", ramRow);
-    info.memoryLabel->setFixedWidth(35);
-    info.memoryLabel->setStyleSheet("color: #ccc; font-size: 10px;");
-    info.memoryLabel->setAlignment(Qt::AlignRight);
-    ramLayout->addWidget(info.memoryLabel);
+    m_memoryLabel = new QLabel("0%", ramRow);
+    m_memoryLabel->setFixedWidth(35);
+    m_memoryLabel->setStyleSheet("color: #ccc; font-size: 10px;");
+    m_memoryLabel->setAlignment(Qt::AlignRight);
+    ramLayout->addWidget(m_memoryLabel);
 
-    containerLayout->addWidget(ramRow);
-
-    // 메인 레이아웃에 추가
-    m_mainLayout->addWidget(info.container);
-    m_cameraInfos[cameraIp] = info;
-
-    updateDialogSize();
-    qDebug() << "[SystemMonitor] Camera info added. Total cameras:" << m_cameraInfos.size();
+    mainLayout->addWidget(ramRow);
 }
 
-void SystemMonitorDialog::removeCameraInfo(const QString &cameraIp)
+void SystemMonitorDialog::updateSystemInfo()
 {
-    qDebug() << "[SystemMonitor] Removing camera info for IP:" << cameraIp;
+    double cpuUsage, memoryUsage;
+    getSystemInfo(cpuUsage, memoryUsage);
 
-    if (m_cameraInfos.contains(cameraIp)) {
-        CameraSystemInfo &info = m_cameraInfos[cameraIp];
+    // CPU 정보 업데이트
+    m_cpuLabel->setText(QString("%1%").arg(cpuUsage, 0, 'f', 1));
+    m_cpuBar->setValue(static_cast<int>(cpuUsage));
 
-        // 컨테이너 제거
-        if (info.container) {
-            m_mainLayout->removeWidget(info.container);
-            info.container->deleteLater();
-        }
-
-        m_cameraInfos.remove(cameraIp);
-        updateDialogSize();
-        qDebug() << "[SystemMonitor] Camera info removed. Total cameras:" << m_cameraInfos.size();
-    } else {
-        qDebug() << "[SystemMonitor] Camera info not found for IP:" << cameraIp;
-    }
-}
-
-void SystemMonitorDialog::updateCameraSystemInfo(const QString &cameraIp, double cpuUsage, double memoryUsage)
-{
-    if (m_cameraInfos.contains(cameraIp)) {
-        CameraSystemInfo &info = m_cameraInfos[cameraIp];
-        info.cpuUsage = cpuUsage;
-        info.memoryUsage = memoryUsage;
-        info.hasWebSocketData = true;
-
-        // UI 업데이트
-        info.cpuLabel->setText(QString("%1%").arg(cpuUsage, 0, 'f', 1));
-        info.cpuBar->setValue(static_cast<int>(cpuUsage));
-
-        info.memoryLabel->setText(QString("%1%").arg(memoryUsage, 0, 'f', 1));
-        info.memoryBar->setValue(static_cast<int>(memoryUsage));
-
-        qDebug() << "[SystemMonitor] Updated camera info for IP:" << cameraIp << "CPU:" << cpuUsage << "Memory:" << memoryUsage;
-    }
-}
-
-void SystemMonitorDialog::updateDialogSize()
-{
-    // 카메라 개수에 따라 다이얼로그 크기 조정
-    int cameraCount = m_cameraInfos.size();
-    int baseHeight = 50; // 기본 높이 줄임 (제목 + 여백)
-    int cameraHeight = 45; // 카메라당 높이 줄임
-
-    int totalHeight = baseHeight + (cameraCount * cameraHeight);
-    resize(200, totalHeight);
-
-    qDebug() << "[SystemMonitor] Dialog size updated. Cameras:" << cameraCount << "Height:" << totalHeight;
-}
-
-void SystemMonitorDialog::updateSystemInfoFromWebSocket(double cpuUsage, double memoryUsage)
-{
-    // 웹소켓으로 받은 시스템 정보 저장
-    m_webSocketCpuUsage = cpuUsage;
-    m_webSocketMemoryUsage = memoryUsage;
-    m_hasWebSocketData = true;
-
-    // 웹소켓 데이터 타임아웃 타이머 재시작 (5초 후 로컬 데이터로 복귀)
-    if (m_webSocketTimeoutTimer) {
-        m_webSocketTimeoutTimer->start(5000);
-    }
-
-    // Client 시스템 정보 업데이트 (웹소켓 데이터로)
-    if (m_cameraInfos.contains("")) {
-        CameraSystemInfo &info = m_cameraInfos[""];
-        info.cpuUsage = cpuUsage;
-        info.memoryUsage = memoryUsage;
-        info.hasWebSocketData = true;
-
-        // UI 업데이트
-        if (info.cpuLabel) {
-            info.cpuLabel->setText(QString("%1%").arg(cpuUsage, 0, 'f', 1));
-        }
-        if (info.cpuBar) {
-            info.cpuBar->setValue(static_cast<int>(cpuUsage));
-        }
-        if (info.memoryLabel) {
-            info.memoryLabel->setText(QString("%1%").arg(memoryUsage, 0, 'f', 1));
-        }
-        if (info.memoryBar) {
-            info.memoryBar->setValue(static_cast<int>(memoryUsage));
-        }
-    }
+    // 메모리 정보 업데이트
+    m_memoryLabel->setText(QString("%1%").arg(memoryUsage, 0, 'f', 1));
+    m_memoryBar->setValue(static_cast<int>(memoryUsage));
 }
 
 void SystemMonitorDialog::getSystemInfo(double& cpuUsage, double& memoryUsage)
 {
-// Windows에서 시스템 정보 가져오기
-#ifdef Q_OS_WIN
+    // Windows에서 시스템 정보 가져오기
+    #ifdef Q_OS_WIN
     // CPU 사용량 (간단한 구현)
     static qint64 lastCpuTime = 0;
     static qint64 lastIdleTime = 0;
-
+    
     FILETIME idleTime, kernelTime, userTime;
     if (GetSystemTimes(&idleTime, &kernelTime, &userTime)) {
-        qint64 currentCpuTime = (static_cast<qint64>(kernelTime.dwHighDateTime) << 32) + kernelTime.dwLowDateTime +
-                                (static_cast<qint64>(userTime.dwHighDateTime) << 32) + userTime.dwLowDateTime;
-        qint64 currentIdleTime = (static_cast<qint64>(idleTime.dwHighDateTime) << 32) + idleTime.dwLowDateTime;
-
+        qint64 currentCpuTime = (kernelTime.dwHighDateTime << 32) + kernelTime.dwLowDateTime +
+                               (userTime.dwHighDateTime << 32) + userTime.dwLowDateTime;
+        qint64 currentIdleTime = (idleTime.dwHighDateTime << 32) + idleTime.dwLowDateTime;
+        
         if (lastCpuTime > 0) {
             qint64 cpuDelta = currentCpuTime - lastCpuTime;
             qint64 idleDelta = currentIdleTime - lastIdleTime;
@@ -6069,13 +5838,13 @@ void SystemMonitorDialog::getSystemInfo(double& cpuUsage, double& memoryUsage)
         } else {
             cpuUsage = 0.0;
         }
-
+        
         lastCpuTime = currentCpuTime;
         lastIdleTime = currentIdleTime;
     } else {
         cpuUsage = 0.0;
     }
-
+    
     // 메모리 사용량
     MEMORYSTATUSEX memInfo;
     memInfo.dwLength = sizeof(MEMORYSTATUSEX);
@@ -6084,23 +5853,11 @@ void SystemMonitorDialog::getSystemInfo(double& cpuUsage, double& memoryUsage)
     } else {
         memoryUsage = 0.0;
     }
-#else
+    #else
     // Linux/Mac용 구현 (간단한 더미 값)
     cpuUsage = 25.0 + (rand() % 50); // 25-75% 랜덤
     memoryUsage = 30.0 + (rand() % 40); // 30-70% 랜덤
-#endif
-}
-
-void SystemMonitorDialog::restartUpdateTimer()
-{
-    if (m_updateTimer) {
-        m_updateTimer->stop();
-        m_updateTimer->start(1000); // 1초마다 업데이트
-        qDebug() << "[SystemMonitor] Update timer restarted";
-    }
-    
-    // 즉시 시스템 정보 업데이트
-    updateSystemInfo();
+    #endif
 }
 
 void SystemMonitorDialog::onCloseButtonClicked()
