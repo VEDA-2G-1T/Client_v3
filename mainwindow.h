@@ -42,7 +42,6 @@
 #include <QProgressBar>
 #include <QNetworkAccessManager>
 
-
 class QTreeWidgetItem;
 class EventCard;
 class CustomTabBar;
@@ -56,8 +55,21 @@ class EventSearchDialog;
 class ExitConfirmDialog;
 class BrightnessDialog;
 class FullscreenCameraDialog;
-class SystemMonitorDialog;
+// [2024-08-01] CameraSystemInfo 구조체를 클래스 밖으로 이동
+struct CameraSystemInfo {
+    QString name;
+    QLabel *nameLabel;
+    QProgressBar *cpuBar;
+    QProgressBar *memoryBar;
+    QLabel *cpuLabel;
+    QLabel *memoryLabel;
+    QWidget *container;
+    double cpuUsage = 0.0;
+    double memoryUsage = 0.0;
+    bool hasWebSocketData = false;
+};
 
+class SystemMonitorDialog;
 
 class MainWindow : public QMainWindow
 {
@@ -72,8 +84,13 @@ private slots:
     void onSwitchView(int idx);
     void onCloseView(int idx);
 
+private:
     // 테마 관련 함수들
-    // bool isDarkMode() const;
+    bool isDarkMode() const;
+    QString getThemeColor(const QString& darkColor, const QString& lightColor) const;
+    void applyThemeColors();
+    void updateAllStyleSheets();
+
     void onLayoutTreeClicked(QTreeWidgetItem *item, int column);
     void onCameraSlotClicked(int slotIndex);
     void onSlotDropped(int srcIndex, int dstIndex);
@@ -92,7 +109,6 @@ private slots:
 
     void onFullscreenButtonClicked(int slotIndex);
 
-
     void handleLogout();
     void onLoginSuccess();
 
@@ -103,6 +119,8 @@ private slots:
 
     void showEventSearchDialog();
     void showSystemMonitorDialog();
+    void createCameraSystemMonitor(const QString &cameraName, const QString &cameraIp);
+    void removeCameraSystemMonitor(const QString &cameraIp);
 
     void onCloseButtonClicked();
 
@@ -135,8 +153,8 @@ private:
     void unregisterCamera(int layoutIndex, int slotIndex);
 
     void startHeadlessValidation(int slotIndex, const QVariantMap& cameraData);
-     QMap<QString, QMediaPlayer*> m_validationPlayers;
-    
+    QMap<QString, QMediaPlayer*> m_validationPlayers;
+
     CustomTabBar  *viewTabBar;
     QStackedWidget *viewStack;
     QStackedWidget *centerStack;
@@ -150,6 +168,9 @@ private:
     QVBoxLayout *bookmarkLay = nullptr;
     NotificationListPanel *m_notificationPanel = nullptr;
     LoginPopup *m_loginPopup = nullptr;
+    SystemMonitorDialog *m_systemMonitorDialog = nullptr;
+    // 카메라별 시스템 모니터는 더 이상 사용하지 않음 (통합된 하나의 다이얼로그 사용)
+    QMap<QString, SystemMonitorDialog*> m_cameraSystemMonitors; // [2024-08-01] 카메라별 시스템 모니터 맵 추가
 
     QPoint m_dragPosition;
     QToolBar *topBar;
@@ -171,6 +192,7 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void changeEvent(QEvent* event) override;
     void closeEvent(QCloseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 
 
@@ -191,6 +213,9 @@ public:
     QMap<QString, int> m_detectionCount;  // 카메라별 감지 횟수
     QMap<QString, QDateTime> m_firstDetectionTime;  // 카메라별 첫 감지 시간
     QMap<QString, QTimer*> m_detectionTimers;  // 카메라별 타이머
+
+    // 등록된 카메라 정보 저장 (메모리 확인 버튼용)
+    QMap<QString, QString> m_registeredCameras; // IP -> 카메라명
 
 private slots:
     void onDetectionTimerTimeout(const QString& cameraName);  // 감지 타이머 타임아웃 처리
@@ -270,6 +295,8 @@ private:
     QPoint m_dragPosition;
 };
 
+
+
 class CameraSlot : public AspectRatioWidget {
     Q_OBJECT
 public:
@@ -284,13 +311,15 @@ public:
     QMediaPlayer* getMediaPlayer() const { return mediaPlayer; }
     QVariantMap getCurrentData() const { return m_currentData; }
 
+
+
 signals:
     void clicked(int slotIndex);
     void dropOccurred(int srcIndex, int dstIndex);
     void cameraRegistered(int slotIndex, const QString &deviceName, const QString &ip, const QString &port);
     void deleteRequested(int slotIndex);
     void modeChanged(int slotIndex, const QString &mode);
-    
+
     void validationFailed(int slotIndex, const QString& error);
 
 
@@ -300,7 +329,7 @@ protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *evt) override;
-    
+
 private slots:
     void onRegisterCamera();
 
@@ -314,7 +343,7 @@ private:
 
     int  m_slotIndex;
 
-    
+
     QFrame *frame;
     QPoint m_dragStartPos;
     QVariantMap m_currentData;
@@ -337,10 +366,10 @@ class EventCardPopupDialog : public QDialog
 
 public:
     explicit EventCardPopupDialog(const QString& cameraName,
-                                 const QString& eventText,
-                                 const QDateTime& timestamp,
-                                 const QString& imageUrl,
-                                 QWidget *parent = nullptr);
+                                  const QString& eventText,
+                                  const QDateTime& timestamp,
+                                  const QString& imageUrl,
+                                  QWidget *parent = nullptr);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -389,8 +418,8 @@ class ContinuousDetectionPopupDialog : public QDialog
 
 public:
     explicit ContinuousDetectionPopupDialog(const QString& cameraName,
-                                           const QString& imageUrl,
-                                           QWidget *parent = nullptr);
+                                            const QString& imageUrl,
+                                            QWidget *parent = nullptr);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -462,7 +491,7 @@ public:
         m_padding(12),
         m_radius(0),
         m_fixedTabWidth(120),
-        m_closeIcon(QStringLiteral(":/resources/icons/close_small_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"))
+        m_closeIcon(QStringLiteral(":/icons/icons/close_small_24dp_B7B7B7_FILL0_wght400_GRAD0_opsz24.svg"))
     {
         setExpanding(false);
         setMovable(true);
@@ -497,7 +526,7 @@ private:
 
 class NotificationItemWidget : public QFrame
 {
-    Q_OBJECT 
+    Q_OBJECT
 public:
     explicit NotificationItemWidget(const QString &title, const QString &message, const QDateTime &timestamp, bool hasCloseBtn, QWidget *parent = nullptr)
         : QFrame(parent)
@@ -878,7 +907,7 @@ private:
     QList<MainWindow::RawEv> filterEvents();
     void populateDeviceCombo();
     void populateEventTypeCombo();
-    
+
     // [2024-12-19] 이미지 향상 기능 관련 함수들 추가
     void setupImageEnhancementControls();                    // 이미지 향상 컨트롤 초기화
     void onSharpnessChanged(int value);                     // 샤프닝 슬라이더 값 변경 처리
@@ -1054,7 +1083,7 @@ class BrightnessDialog : public QDialog
     Q_OBJECT
 
 public:
-     explicit BrightnessDialog(const QString &cameraName, int initialValue, QWidget *parent = nullptr);
+    explicit BrightnessDialog(const QString &cameraName, int initialValue, QWidget *parent = nullptr);
 
 signals:
     void brightnessChanged(int value);
@@ -1082,21 +1111,32 @@ class SystemMonitorDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit SystemMonitorDialog(QWidget *parent = nullptr);
+    explicit SystemMonitorDialog(const QString &cameraName = QString(), QWidget *parent = nullptr);
     ~SystemMonitorDialog();
+
+    void setCameraName(const QString &cameraName);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
 
-private slots:
+public slots:
     void updateSystemInfo();
     void onCloseButtonClicked();
+    void updateSystemInfoFromWebSocket(double cpuUsage, double memoryUsage);
+    void addCameraInfo(const QString &cameraName, const QString &cameraIp);
+    void removeCameraInfo(const QString &cameraIp);
+    void updateCameraSystemInfo(const QString &cameraIp, double cpuUsage, double memoryUsage);
+    void restartUpdateTimer();
+
+public:
+    QMap<QString, CameraSystemInfo> m_cameraInfos; // [2024-08-01] public으로 변경
 
 private:
     void setupUI();
     void getSystemInfo(double& cpuUsage, double& memoryUsage);
+    void updateDialogSize();
 
     QLabel *m_cpuLabel;
     QLabel *m_memoryLabel;
@@ -1106,6 +1146,18 @@ private:
     QFrame* m_titleBar;
     QPoint m_dragPosition;
     bool m_isDragging = false;
+
+    // 카메라 정보
+    QString m_cameraName;
+
+    // 웹소켓으로 받은 시스템 정보
+    double m_webSocketCpuUsage = -1.0;
+    double m_webSocketMemoryUsage = -1.0;
+    bool m_hasWebSocketData = false;
+    QTimer *m_webSocketTimeoutTimer;
+
+    // 카메라별 시스템 정보
+    QVBoxLayout *m_mainLayout;
 };
 
 #endif // MAINWINDOW_H
