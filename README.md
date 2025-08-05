@@ -54,7 +54,7 @@
 
 ###  카메라 관리
 <div align="center">
-  <img src="docs/images/camera_management.png" alt="카메라 관리 화면" width="600"/>
+  <img src="docs/images/camera_management.png" alt="카메라 관리 화면" width="400"/>
 </div>
 
 - 실시간 CCTV 스트리밍 (RTSP/RTSPS)
@@ -83,7 +83,7 @@
 
 ###  이미지 분석
 <div align="center">
-  <img src="docs/images/image_analysis.png" alt="이미지 분석 화면" width="600"/>
+  <img src="docs/images/image_analysis.png" alt="이미지 분석 화면" width="500"/>
 </div>
 
 - 고급 이미지 향상 기능
@@ -92,7 +92,7 @@
 
 ###  알림 시스템
 <div align="center">
-  <img src="docs/images/notification_system.png" alt="알림 시스템 화면" width="600"/>
+  <img src="docs/images/notification_system.png" alt="알림 시스템 화면" width="400"/>
 </div>
 
 - 실시간 이벤트 알림
