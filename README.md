@@ -74,7 +74,7 @@
 
 ###  시스템 모니터링
 <div align="center">
-  <img src="docs/images/system_monitoring.png" alt="시스템 모니터링 화면" width="600"/>
+  <img src="docs/images/system_monitoring.png" alt="시스템 모니터링 화면" width="300"/>
 </div>
 
 - 실시간 CPU/메모리 사용률
