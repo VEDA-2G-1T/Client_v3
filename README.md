@@ -52,27 +52,52 @@
 
 ## 주요 기능
 
-### 카메라 관리
+###  카메라 관리
+<div align="center">
+  <img src="docs/images/camera_management.png" alt="카메라 관리 화면" width="600"/>
+</div>
+
 - 실시간 CCTV 스트리밍 (RTSP/RTSPS)
 - 다중 카메라 동시 모니터링
 - 카메라 등록/편집/삭제
 - 드래그 앤 드롭 카메라 배치
 
-### 이벤트 감지
+###  이벤트 감지
+<div align="center">
+  <img src="docs/images/event_detection.png" alt="이벤트 감지 화면" width="600"/>
+</div>
+
 - PPE 위반 감지 (안전모, 안전조끼)
 - 침입 감지
 - 낙상 감지
 - 이상 소음 감지
 
-### 시스템 모니터링
+###  시스템 모니터링
+<div align="center">
+  <img src="docs/images/system_monitoring.png" alt="시스템 모니터링 화면" width="600"/>
+</div>
+
 - 실시간 CPU/메모리 사용률
 - 카메라 연결 상태 모니터링
 - 웹소켓 기반 실시간 통신
 
-### 이미지 분석
+###  이미지 분석
+<div align="center">
+  <img src="docs/images/image_analysis.png" alt="이미지 분석 화면" width="600"/>
+</div>
+
 - 고급 이미지 향상 기능
 - 드래그 앤 드롭 이미지 로드
 - 실시간 이미지 처리
+
+###  알림 시스템
+<div align="center">
+  <img src="docs/images/notification_system.png" alt="알림 시스템 화면" width="600"/>
+</div>
+
+- 실시간 이벤트 알림
+- 연속 감지 팝업
+- 북마크 기능
 
 ---
 
