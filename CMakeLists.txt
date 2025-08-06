@@ -31,10 +31,29 @@ set(PROJECT_SOURCES
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets)
+
     qt_add_executable(Client_v3
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
         resources.qrc
+        aspectratiowidget.h aspectratiowidget.cpp
+        dragdropimagelabel.h dragdropimagelabel.cpp
+        custommessagebox.h custommessagebox.cpp
+        debug_utils.h
+        exitconfirmdialog.h exitconfirmdialog.cpp
+        loginpopup.h loginpopup.cpp
+        cameraregistrationdialog.h cameraregistrationdialog.cpp
+        brightnessdialog.h brightnessdialog.cpp
+        notificationitemwidget.h notificationitemwidget.cpp
+        notificationlistpanel.h notificationlistpanel.cpp
+        loginwidget.h loginwidget.cpp
+        loginwidget.cpp loginwidget.h
+        customtabbar.h customtabbar.cpp
+        eventcard.h eventcard.cpp
+        eventcardpopupdialog.h eventcardpopupdialog.cpp
+        continuousdetectionpopupdialog.h continuousdetectionpopupdialog.cpp
+        fullscreencameradialog.h fullscreencameradialog.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Client_v3 APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -61,6 +80,7 @@ target_link_libraries(Client_v3 PRIVATE
     Qt${QT_VERSION_MAJOR}::WebSockets
      ${OpenCV_LIBS}
     )
+target_link_libraries(Client_v3 PRIVATE Qt6::Widgets)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
